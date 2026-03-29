@@ -1,0 +1,8 @@
+.env
+data/
+*.db
+*.sqlite
+tmp/
+dist/
+vendor/
+voice_cache/

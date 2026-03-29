@@ -1,0 +1,55 @@
+{
+  "preguntas_frecuentes": [
+    {
+      "pregunta": "¿Necesito experiencia previa?",
+      "respuesta": "[RESPUESTA REAL]",
+      "categoria": "requisitos"
+    },
+    {
+      "pregunta": "¿Desde que edad pueden empezar?",
+      "respuesta": "[RESPUESTA REAL]",
+      "categoria": "requisitos"
+    },
+    {
+      "pregunta": "¿Necesito tener kart propio?",
+      "respuesta": "[RESPUESTA REAL]",
+      "categoria": "equipamiento"
+    },
+    {
+      "pregunta": "¿Que debo llevar a las clases?",
+      "respuesta": "[RESPUESTA REAL]",
+      "categoria": "equipamiento"
+    },
+    {
+      "pregunta": "¿Es seguro?",
+      "respuesta": "[RESPUESTA REAL - mencionar medidas de seguridad, seguros, etc.]",
+      "categoria": "seguridad"
+    },
+    {
+      "pregunta": "¿Donde queda la pista?",
+      "respuesta": "[RESPUESTA REAL con direccion y como llegar]",
+      "categoria": "ubicacion"
+    },
+    {
+      "pregunta": "¿Tienen parqueadero?",
+      "respuesta": "[RESPUESTA REAL]",
+      "categoria": "ubicacion"
+    },
+    {
+      "pregunta": "¿Puedo ir a ver una clase antes de inscribirme?",
+      "respuesta": "[RESPUESTA REAL]",
+      "categoria": "general"
+    },
+    {
+      "pregunta": "¿Dan certificado?",
+      "respuesta": "[RESPUESTA REAL]",
+      "categoria": "certificacion"
+    },
+    {
+      "pregunta": "¿Puedo pagar en cuotas?",
+      "respuesta": "[RESPUESTA REAL]",
+      "categoria": "pagos"
+    }
+  ],
+  "_instrucciones": "LLENAR: Agrega TODAS las preguntas que les hacen frecuentemente en Instagram. Entre mas preguntas, mejor responde el bot. Elimina este campo cuando termines."
+}

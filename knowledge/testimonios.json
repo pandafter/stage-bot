@@ -1,0 +1,24 @@
+{
+  "testimonios": [
+    {
+      "nombre": "[Nombre del alumno/padre]",
+      "curso_tomado": "[Que curso tomo]",
+      "testimonio": "[Testimonio real - copiar de reviews de Google, comentarios de Instagram, etc.]",
+      "resultado": "[Ej: Ahora compite en la liga regional]",
+      "fecha_aproximada": "[Mes/Año]"
+    }
+  ],
+  "logros_alumnos": [
+    {
+      "descripcion": "[Ej: 5 alumnos clasificaron al campeonato nacional 2025]",
+      "relevancia": "alta"
+    }
+  ],
+  "numeros_sociales": {
+    "alumnos_totales": "[Ej: +200 alumnos formados]",
+    "años_experiencia": "[Ej: 5 años]",
+    "tasa_satisfaccion": "[Ej: 98%]",
+    "seguidores_instagram": "[Ej: 15k]"
+  },
+  "_instrucciones": "LLENAR: Social proof es CRITICO para ventas. Agrega testimonios reales. Si no tienes, pide al cliente que te pase screenshots de comentarios positivos. Elimina este campo cuando termines."
+}

@@ -1,0 +1,40 @@
+{
+  "reglas_upsell": [
+    {
+      "si_compra": "curso_basico",
+      "ofrecer": ["curso_avanzado", "evento_1"],
+      "momento": "despues_de_confirmar_pago",
+      "mensaje_guia": "Genial que te inscribiste. Te cuento que muchos de nuestros alumnos despues del basico pasan al avanzado y ahi es donde realmente despegan. Si te animas desde ya, te puedo guardar cupo con [DESCUENTO]."
+    },
+    {
+      "si_compra": "curso_avanzado",
+      "ofrecer": ["evento_competencia", "clases_privadas"],
+      "momento": "despues_de_confirmar_pago",
+      "mensaje_guia": ""
+    }
+  ],
+  "productos_complementarios": [
+    {
+      "id": "clases_privadas",
+      "nombre": "[Clases privadas / personalizadas]",
+      "precio": 0,
+      "descripcion": "[Descripcion]",
+      "link_de_pago": "[URL]"
+    },
+    {
+      "id": "merchandising",
+      "nombre": "[Casco propio / guantes / traje]",
+      "precio": 0,
+      "descripcion": "[Descripcion]",
+      "link_de_pago": "[URL]"
+    }
+  ],
+  "reglas_descuento_combo": [
+    {
+      "combo": ["curso_basico", "curso_avanzado"],
+      "descuento": "[Ej: 20%]",
+      "nombre_combo": "[Ej: Pack Piloto Completo]"
+    }
+  ],
+  "_instrucciones": "LLENAR: Define que ofreces despues de cada compra. El upselling bien hecho puede aumentar 30-50% el ticket promedio. Elimina este campo cuando termines."
+}

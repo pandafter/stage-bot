@@ -1,0 +1,27 @@
+{
+  "nombre": "Academia de Kartismo [NOMBRE REAL AQUI]",
+  "ciudad": "Bogotá, Colombia",
+  "direccion": "[DIRECCION COMPLETA]",
+  "telefono": "[TELEFONO]",
+  "instagram": "@[USUARIO_INSTAGRAM]",
+  "website": "[URL_WEBSITE]",
+  "horarios_atencion": {
+    "lunes_viernes": "8:00 AM - 6:00 PM",
+    "sabados": "8:00 AM - 4:00 PM",
+    "domingos": "Cerrado"
+  },
+  "descripcion_corta": "Academia de kartismo profesional en Bogotá con [X] años de experiencia formando pilotos.",
+  "descripcion_larga": "[DESCRIPCION COMPLETA DE LA ACADEMIA - historia, mision, que la hace diferente, logros, etc.]",
+  "diferenciadores": [
+    "[Que los hace unicos vs la competencia]",
+    "[Instructores certificados / experiencia]",
+    "[Pista propia / convenios]",
+    "[Resultados de alumnos]"
+  ],
+  "redes_sociales": {
+    "instagram": "[URL]",
+    "facebook": "[URL]",
+    "tiktok": "[URL]",
+    "youtube": "[URL]"
+  }
+}

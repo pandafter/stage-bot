@@ -1,0 +1,53 @@
+{
+  "cursos": [
+    {
+      "id": "curso_basico",
+      "nombre": "[Nombre del curso basico]",
+      "descripcion": "[Descripcion completa - que aprende el alumno]",
+      "duracion": "[Ej: 4 semanas, 12 sesiones]",
+      "frecuencia": "[Ej: 3 veces por semana]",
+      "horarios_disponibles": [
+        "[Ej: Lunes y Miercoles 4PM-6PM]",
+        "[Ej: Sabados 9AM-12PM]"
+      ],
+      "requisitos": [
+        "[Ej: Edad minima 8 años]",
+        "[Ej: No se necesita experiencia previa]"
+      ],
+      "que_incluye": [
+        "[Ej: Kart para practicas]",
+        "[Ej: Casco y equipo de seguridad]",
+        "[Ej: Certificado al completar]",
+        "[Ej: Acceso a pista X horas]"
+      ],
+      "beneficios_clave": [
+        "[Ej: Aprendes tecnicas profesionales desde cero]",
+        "[Ej: Instructores con experiencia en competencia]",
+        "[Ej: Grupos pequeños, atencion personalizada]"
+      ],
+      "precio_id": "precio_basico",
+      "nivel": "principiante",
+      "cupos_maximos": 10,
+      "proximo_inicio": "[FECHA]"
+    },
+    {
+      "id": "curso_avanzado",
+      "nombre": "[Nombre del curso avanzado]",
+      "descripcion": "[Descripcion completa]",
+      "duracion": "[Duracion]",
+      "frecuencia": "[Frecuencia]",
+      "horarios_disponibles": [],
+      "requisitos": [
+        "[Ej: Haber completado curso basico]",
+        "[Ej: Minimo 6 meses de practica]"
+      ],
+      "que_incluye": [],
+      "beneficios_clave": [],
+      "precio_id": "precio_avanzado",
+      "nivel": "avanzado",
+      "cupos_maximos": 8,
+      "proximo_inicio": "[FECHA]"
+    }
+  ],
+  "_instrucciones": "LLENAR: Agrega todos los cursos reales. Duplica el bloque para cada curso nuevo. Elimina este campo _instrucciones cuando termines."
+}

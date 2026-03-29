@@ -1,0 +1,21 @@
+{
+  "eventos": [
+    {
+      "id": "evento_1",
+      "nombre": "[Nombre del evento]",
+      "tipo": "[Ej: competencia, jornada libre, taller, experiencia]",
+      "descripcion": "[Descripcion completa del evento]",
+      "fecha": "[FECHA]",
+      "hora": "[HORA]",
+      "lugar": "[LUGAR]",
+      "precio": 0,
+      "moneda": "COP",
+      "cupos_disponibles": 0,
+      "que_incluye": [],
+      "requisitos": [],
+      "link_de_pago": "[URL]",
+      "link_inscripcion": "[URL]"
+    }
+  ],
+  "_instrucciones": "LLENAR: Agrega todos los eventos activos. Elimina eventos pasados. Elimina este campo cuando termines."
+}

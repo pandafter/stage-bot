@@ -1,0 +1,51 @@
+{
+  "precios": [
+    {
+      "id": "precio_basico",
+      "curso_id": "curso_basico",
+      "precio_regular": 0,
+      "moneda": "COP",
+      "precio_con_descuento": null,
+      "descuento_vigente_hasta": null,
+      "planes_de_pago": [
+        {
+          "tipo": "contado",
+          "descripcion": "Pago unico",
+          "monto": 0,
+          "beneficio": "[Ej: 10% de descuento]"
+        },
+        {
+          "tipo": "2_cuotas",
+          "descripcion": "2 cuotas mensuales",
+          "monto_por_cuota": 0,
+          "total": 0
+        }
+      ],
+      "metodos_de_pago": [
+        "Transferencia bancaria",
+        "Nequi",
+        "Daviplata",
+        "Tarjeta credito/debito",
+        "Efectivo"
+      ],
+      "link_de_pago": "[URL de Hotmart o pasarela de pago]"
+    },
+    {
+      "id": "precio_avanzado",
+      "curso_id": "curso_avanzado",
+      "precio_regular": 0,
+      "moneda": "COP",
+      "planes_de_pago": [],
+      "metodos_de_pago": [],
+      "link_de_pago": "[URL]"
+    }
+  ],
+  "politica_descuentos": {
+    "descuento_referido": "[Ej: 15% para ambos]",
+    "descuento_grupo": "[Ej: 20% para 3+ personas]",
+    "descuento_recompra": "[Ej: 10% si ya tomo otro curso]",
+    "descuento_pronto_pago": "[Ej: 5% si paga 1 semana antes]"
+  },
+  "politica_reembolso": "[Descripcion de la politica de reembolso/cancelacion]",
+  "_instrucciones": "LLENAR: Pon los precios REALES en COP. Agrega los links de pago reales. Elimina este campo cuando termines."
+}

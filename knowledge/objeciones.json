@@ -1,0 +1,58 @@
+{
+  "objeciones": [
+    {
+      "objecion": "Esta muy caro / No tengo plata",
+      "tipo": "precio",
+      "estrategia": "reframe_valor",
+      "respuesta_guia": "Entiendo que es una inversion importante. Pero piensa que con este curso [BENEFICIO CONCRETO]. Ademas tenemos plan de cuotas para que sea mas facil. ¿Te cuento como funciona?",
+      "datos_de_apoyo": [
+        "Comparar con costo de [algo relevante]",
+        "Mencionar plan de cuotas",
+        "Mencionar descuento por pronto pago si existe"
+      ]
+    },
+    {
+      "objecion": "Necesito pensarlo",
+      "tipo": "indecision",
+      "estrategia": "urgencia_suave",
+      "respuesta_guia": "Claro, tomate tu tiempo. Solo te cuento que los cupos son limitados a [X] personas y ya van [Y] inscritos. Si tienes alguna duda que te ayude a decidir, preguntame lo que quieras.",
+      "datos_de_apoyo": [
+        "Mencionar cupos limitados (si es real)",
+        "Ofrecer resolver dudas especificas",
+        "NO presionar agresivamente"
+      ]
+    },
+    {
+      "objecion": "No tengo tiempo",
+      "tipo": "tiempo",
+      "estrategia": "flexibilidad",
+      "respuesta_guia": "Tenemos horarios flexibles. ¿Que dias y horas te quedan mejor? Asi vemos cual grupo te sirve.",
+      "datos_de_apoyo": [
+        "Mostrar variedad de horarios",
+        "Mencionar frecuencia (no es todos los dias)"
+      ]
+    },
+    {
+      "objecion": "Mi hijo/a es muy pequeño/a",
+      "tipo": "edad",
+      "estrategia": "seguridad",
+      "respuesta_guia": "[AJUSTAR SEGUN EDAD MINIMA REAL Y MEDIDAS DE SEGURIDAD]",
+      "datos_de_apoyo": []
+    },
+    {
+      "objecion": "Es peligroso",
+      "tipo": "seguridad",
+      "estrategia": "confianza",
+      "respuesta_guia": "[AJUSTAR CON DATOS REALES DE SEGURIDAD, EQUIPOS, SEGUROS, HISTORIAL]",
+      "datos_de_apoyo": []
+    },
+    {
+      "objecion": "Hay otras academias mas baratas",
+      "tipo": "competencia",
+      "estrategia": "diferenciacion",
+      "respuesta_guia": "[AJUSTAR - que diferencia a esta academia de las demas, que incluye el precio que otros no dan]",
+      "datos_de_apoyo": []
+    }
+  ],
+  "_instrucciones": "LLENAR: Agrega las objeciones REALES que reciben. Las respuesta_guia son orientativas - Claude las adaptara al contexto de cada conversacion. Elimina este campo cuando termines."
+}
