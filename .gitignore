@@ -6,3 +6,6 @@ tmp/
 dist/
 vendor/
 voice_cache/
+PLAN.md
+PROMETHEUS.md
+SETUP_EXTERNO.md
