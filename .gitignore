@@ -1,11 +1,37 @@
+# Binaries
+*.exe
+bot
+dist/
+
+# Environment & secrets
 .env
+
+# Database
 data/
 *.db
 *.sqlite
+
+# Temp
 tmp/
-dist/
 vendor/
 voice_cache/
+
+# Claude Code
+CLAUDE.md
+.claude/
+
+# Planning docs (not part of the app)
 PLAN.md
 PROMETHEUS.md
 SETUP_EXTERNO.md
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

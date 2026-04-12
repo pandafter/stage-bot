@@ -5,22 +5,33 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 
 	"github.com/kart-academy/instagram-bot/internal/config"
+	"github.com/kart-academy/instagram-bot/internal/domain"
 )
 
 type Handler struct {
-	cfg    *config.Config
-	logger *zap.Logger
+	cfg        *config.Config
+	messenger  domain.Messenger
+	ai         domain.AIEngine
+	voice      domain.VoiceService
+	audioStore domain.AudioStore
+	logger     *zap.Logger
 }
 
-func NewHandler(cfg *config.Config, logger *zap.Logger) *Handler {
+func NewHandler(cfg *config.Config, m domain.Messenger, ai domain.AIEngine, vc domain.VoiceService, as domain.AudioStore, logger *zap.Logger) *Handler {
 	return &Handler{
-		cfg:    cfg,
-		logger: logger,
+		cfg:        cfg,
+		messenger:  m,
+		ai:         ai,
+		voice:      vc,
+		audioStore: as,
+		logger:     logger,
 	}
 }
 
@@ -46,8 +57,8 @@ func (h *Handler) Verify(c *fiber.Ctx) error {
 func (h *Handler) Receive(c *fiber.Ctx) error {
 	body := c.Body()
 
-	// Validate HMAC signature if app secret is configured
-	if h.cfg.AppSecret != "" {
+	// Validate HMAC signature (skip in development for testing)
+	if h.cfg.AppSecret != "" && !h.cfg.IsDevelopment() {
 		signature := c.Get("X-Hub-Signature-256")
 		if !validateSignature(body, signature, h.cfg.AppSecret) {
 			h.logger.Warn("invalid webhook signature")
@@ -74,7 +85,6 @@ func (h *Handler) Receive(c *fiber.Ctx) error {
 }
 
 // processMessages handles incoming messages asynchronously.
-// This is where the brain will be connected in Phase 4.
 func (h *Handler) processMessages(messages []IncomingMessage) {
 	for _, msg := range messages {
 		h.logger.Info("message received",
@@ -86,9 +96,127 @@ func (h *Handler) processMessages(messages []IncomingMessage) {
 			zap.Int64("timestamp", msg.Timestamp),
 		)
 
-		// TODO Phase 1: Echo response via Instagram API
-		// TODO Phase 4: brain.Process(msg) → response
+		// Only respond to test user in development
+		if h.cfg.TestSenderID != "" && msg.SenderID != h.cfg.TestSenderID {
+			h.logger.Info("ignoring message from non-test user",
+				zap.String("sender_id", msg.SenderID),
+			)
+			continue
+		}
+
+		h.messenger.MarkSeen(msg.SenderID)
+		h.messenger.SetTypingOn(msg.SenderID)
+
+		// Determine if incoming message is audio
+		respondWithAudio := false
+		var inputText string
+
+		switch msg.Type {
+		case MessageTypeAudio:
+			// Audio in -> transcribe -> respond with audio
+			if h.voice == nil || !h.voice.Enabled() || msg.MediaURL == "" {
+				continue
+			}
+			audioData, err := h.messenger.DownloadMedia(msg.MediaURL)
+			if err != nil {
+				h.logger.Error("failed to download audio", zap.Error(err))
+				continue
+			}
+
+			transcription, err := h.voice.SpeechToText(audioData)
+			if err != nil {
+				h.logger.Error("STT failed", zap.Error(err))
+				continue
+			}
+
+			h.logger.Info("audio transcribed",
+				zap.String("sender_id", msg.SenderID),
+				zap.String("transcription", transcription),
+			)
+
+			inputText = transcription
+			respondWithAudio = true
+
+		case MessageTypeText:
+			if msg.Text == "" {
+				continue
+			}
+			inputText = msg.Text
+			// If user explicitly asks for audio response
+			if wantsAudio(msg.Text) {
+				respondWithAudio = true
+			}
+
+		default:
+			continue
+		}
+
+		// Generate response with AI
+		reply, err := h.ai.Process(msg.SenderID, inputText)
+		if err != nil {
+			h.logger.Error("brain processing failed",
+				zap.String("sender_id", msg.SenderID),
+				zap.Error(err),
+			)
+			continue
+		}
+
+		// Send response
+		if respondWithAudio && h.voice != nil && h.voice.Enabled() {
+			if err := h.sendAudioReply(msg.SenderID, reply); err != nil {
+				h.logger.Error("failed to send audio reply, falling back to text",
+					zap.String("sender_id", msg.SenderID),
+					zap.Error(err),
+				)
+				// Fallback to text if audio fails
+				h.messenger.SendText(msg.SenderID, reply)
+			}
+		} else {
+			if err := h.messenger.SendText(msg.SenderID, reply); err != nil {
+				h.logger.Error("failed to send reply",
+					zap.String("sender_id", msg.SenderID),
+					zap.Error(err),
+				)
+			}
+		}
+
+		h.logger.Info("reply sent",
+			zap.String("sender_id", msg.SenderID),
+			zap.String("reply", reply),
+			zap.Bool("audio", respondWithAudio),
+		)
 	}
+}
+
+// sendAudioReply converts text to speech and sends it as an audio message via public URL.
+func (h *Handler) sendAudioReply(recipientID, text string) error {
+	audioData, err := h.voice.TextToSpeech(text)
+	if err != nil {
+		return fmt.Errorf("TTS: %w", err)
+	}
+
+	audioID := h.audioStore.Put(audioData)
+	audioURL := fmt.Sprintf("%s/audio/%s", h.cfg.PublicURL, audioID)
+
+	h.logger.Debug("audio URL generated", zap.String("url", audioURL), zap.Int("bytes", len(audioData)))
+
+	return h.messenger.SendAudio(recipientID, audioURL)
+}
+
+// wantsAudio detects if the user is asking for an audio/voice response.
+func wantsAudio(text string) bool {
+	lower := strings.ToLower(text)
+	keywords := []string{
+		"audio", "nota de voz", "voz", "voice", "escuchar",
+		"háblame", "hablame", "dime con voz", "manda audio",
+		"envía audio", "envia audio", "grabame", "grábame",
+	}
+	for _, kw := range keywords {
+		if strings.Contains(lower, kw) {
+			return true
+		}
+	}
+	return false
 }
 
 // validateSignature verifies the X-Hub-Signature-256 header using HMAC SHA256.

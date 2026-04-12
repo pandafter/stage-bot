@@ -30,8 +30,17 @@ type Config struct {
 	// OpenAI (Whisper)
 	OpenAIAPIKey string
 
+	// Google Sheets knowledge base
+	GoogleSheetID string
+
+	// Server public URL (ngrok)
+	PublicURL string
+
 	// Database
 	DatabaseURL string
+
+	// Testing — only respond to this sender in development
+	TestSenderID string
 }
 
 func Load() (*Config, error) {
@@ -49,7 +58,10 @@ func Load() (*Config, error) {
 		ElevenLabsAPIKey:   getEnv("ELEVENLABS_API_KEY", ""),
 		ElevenLabsVoiceID:  getEnv("ELEVENLABS_VOICE_ID", ""),
 		OpenAIAPIKey:       getEnv("OPENAI_API_KEY", ""),
+		GoogleSheetID:       getEnv("GOOGLE_SHEET_ID", ""),
+		PublicURL:           getEnv("PUBLIC_URL", ""),
 		DatabaseURL:        getEnv("DATABASE_URL", "data/bot.db"),
+		TestSenderID:       getEnv("TEST_SENDER_ID", ""),
 	}
 
 	if err := cfg.validate(); err != nil {

@@ -1,4 +1,4 @@
-package instagram
+package messenger
 
 // Send API types for Instagram Graph API
 // Reference: https://developers.facebook.com/docs/instagram-messaging/send-api
@@ -13,13 +13,13 @@ type Recipient struct {
 }
 
 type SendMsg struct {
-	Text         string        `json:"text,omitempty"`
-	Attachment   *SendAttach   `json:"attachment,omitempty"`
-	QuickReplies []QuickReply  `json:"quick_replies,omitempty"`
+	Text         string       `json:"text,omitempty"`
+	Attachment   *SendAttach  `json:"attachment,omitempty"`
+	QuickReplies []QuickReply `json:"quick_replies,omitempty"`
 }
 
 type SendAttach struct {
-	Type    string      `json:"type"` // audio, image, video, file
+	Type    string      `json:"type"`
 	Payload SendPayload `json:"payload"`
 }
 
@@ -29,14 +29,14 @@ type SendPayload struct {
 }
 
 type QuickReply struct {
-	ContentType string `json:"content_type"` // text
+	ContentType string `json:"content_type"`
 	Title       string `json:"title"`
 	Payload     string `json:"payload"`
 }
 
 type SenderActionRequest struct {
 	Recipient    Recipient `json:"recipient"`
-	SenderAction string    `json:"sender_action"` // typing_on, typing_off, mark_seen
+	SenderAction string    `json:"sender_action"`
 }
 
 type SendResponse struct {

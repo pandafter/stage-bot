@@ -1,4 +1,4 @@
-package instagram
+package messenger
 
 import (
 	"bytes"
@@ -12,19 +12,22 @@ import (
 )
 
 const (
-	graphAPIBase    = "https://graph.facebook.com/v21.0"
-	defaultTimeout  = 10 * time.Second
+	graphAPIBase   = "https://graph.instagram.com/v21.0"
+	defaultTimeout = 10 * time.Second
 )
 
-type Client struct {
+// Instagram implements domain.Messenger using the Instagram Graph API.
+type Instagram struct {
 	pageToken  string
+	accountID  string
 	httpClient *http.Client
 	logger     *zap.Logger
 }
 
-func NewClient(pageToken string, logger *zap.Logger) *Client {
-	return &Client{
+func NewInstagram(pageToken string, accountID string, logger *zap.Logger) *Instagram {
+	return &Instagram{
 		pageToken: pageToken,
+		accountID: accountID,
 		httpClient: &http.Client{
 			Timeout: defaultTimeout,
 		},
@@ -33,7 +36,7 @@ func NewClient(pageToken string, logger *zap.Logger) *Client {
 }
 
 // SendText sends a text message to a recipient.
-func (c *Client) SendText(recipientID, text string) error {
+func (c *Instagram) SendText(recipientID, text string) error {
 	req := SendRequest{
 		Recipient: Recipient{ID: recipientID},
 		Message:   SendMsg{Text: text},
@@ -41,8 +44,8 @@ func (c *Client) SendText(recipientID, text string) error {
 	return c.sendMessage(req)
 }
 
-// SendAudio sends an audio attachment via URL.
-func (c *Client) SendAudio(recipientID, audioURL string) error {
+// SendAudio sends an audio attachment via a public URL.
+func (c *Instagram) SendAudio(recipientID, audioURL string) error {
 	req := SendRequest{
 		Recipient: Recipient{ID: recipientID},
 		Message: SendMsg{
@@ -56,7 +59,7 @@ func (c *Client) SendAudio(recipientID, audioURL string) error {
 }
 
 // SendQuickReplies sends a message with quick reply buttons.
-func (c *Client) SendQuickReplies(recipientID, text string, replies []QuickReply) error {
+func (c *Instagram) SendQuickReplies(recipientID, text string, replies []QuickReply) error {
 	req := SendRequest{
 		Recipient: Recipient{ID: recipientID},
 		Message: SendMsg{
@@ -68,22 +71,22 @@ func (c *Client) SendQuickReplies(recipientID, text string, replies []QuickReply
 }
 
 // SetTypingOn shows the typing indicator to the user.
-func (c *Client) SetTypingOn(recipientID string) error {
+func (c *Instagram) SetTypingOn(recipientID string) error {
 	return c.sendAction(recipientID, "typing_on")
 }
 
 // SetTypingOff hides the typing indicator.
-func (c *Client) SetTypingOff(recipientID string) error {
+func (c *Instagram) SetTypingOff(recipientID string) error {
 	return c.sendAction(recipientID, "typing_off")
 }
 
 // MarkSeen marks the last message as seen.
-func (c *Client) MarkSeen(recipientID string) error {
+func (c *Instagram) MarkSeen(recipientID string) error {
 	return c.sendAction(recipientID, "mark_seen")
 }
 
 // DownloadMedia downloads media from an Instagram media URL.
-func (c *Client) DownloadMedia(mediaURL string) ([]byte, error) {
+func (c *Instagram) DownloadMedia(mediaURL string) ([]byte, error) {
 	req, err := http.NewRequest("GET", mediaURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create media request: %w", err)
@@ -108,7 +111,7 @@ func (c *Client) DownloadMedia(mediaURL string) ([]byte, error) {
 	return data, nil
 }
 
-func (c *Client) sendMessage(req SendRequest) error {
+func (c *Instagram) sendMessage(req SendRequest) error {
 	body, err := json.Marshal(req)
 	if err != nil {
 		return fmt.Errorf("marshal send request: %w", err)
@@ -146,7 +149,7 @@ func (c *Client) sendMessage(req SendRequest) error {
 	return nil
 }
 
-func (c *Client) sendAction(recipientID, action string) error {
+func (c *Instagram) sendAction(recipientID, action string) error {
 	req := SenderActionRequest{
 		Recipient:    Recipient{ID: recipientID},
 		SenderAction: action,

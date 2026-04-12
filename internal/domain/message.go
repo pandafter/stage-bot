@@ -1,4 +1,4 @@
-package brain
+package domain
 
 // Intent represents the classified intention of a user message.
 type Intent string
@@ -65,4 +65,16 @@ type ConversationContext struct {
 	LeadScore     int
 	History       string
 	TotalMessages int
+}
+
+// LeadScore holds the scoring data for a single lead.
+type LeadScore struct {
+	Total         int
+	MessageCount  int
+	IntentHistory []Intent
+	State         LeadState
+	ObjectionsHit int
+	PriceAsked    bool
+	ScheduleAsked bool
+	BuySignalSent bool
 }

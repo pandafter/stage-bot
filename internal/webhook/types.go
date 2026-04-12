@@ -37,7 +37,7 @@ type Message struct {
 }
 
 type Attachment struct {
-	Type    string  `json:"type"` // image, audio, video, file
+	Type    string  `json:"type"`
 	Payload Payload `json:"payload"`
 }
 

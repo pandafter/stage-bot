@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/kart-academy/instagram-bot/internal/config"
+	"github.com/kart-academy/instagram-bot/internal/domain"
 	"github.com/kart-academy/instagram-bot/internal/webhook"
 )
 
@@ -22,7 +23,14 @@ type Server struct {
 	logger *zap.Logger
 }
 
-func New(cfg *config.Config, logger *zap.Logger) *Server {
+type Dependencies struct {
+	Messenger  domain.Messenger
+	AI         domain.AIEngine
+	Voice      domain.VoiceService
+	AudioStore domain.AudioStore
+}
+
+func New(cfg *config.Config, deps Dependencies, logger *zap.Logger) *Server {
 	app := fiber.New(fiber.Config{
 		AppName:               "kart-academy-bot",
 		ReadTimeout:           10 * time.Second,
@@ -39,15 +47,25 @@ func New(cfg *config.Config, logger *zap.Logger) *Server {
 		logger: logger,
 	}
 
-	s.setupRoutes()
+	s.setupRoutes(deps)
 
 	return s
 }
 
-func (s *Server) setupRoutes() {
+func (s *Server) setupRoutes(deps Dependencies) {
 	s.app.Get("/health", s.healthHandler)
 
-	wh := webhook.NewHandler(s.cfg, s.logger)
+	// Audio file serving endpoint
+	s.app.Get("/audio/:id", func(c *fiber.Ctx) error {
+		data, ok := deps.AudioStore.Get(c.Params("id"))
+		if !ok {
+			return c.SendStatus(fiber.StatusNotFound)
+		}
+		c.Set("Content-Type", "audio/mp4")
+		return c.Send(data)
+	})
+
+	wh := webhook.NewHandler(s.cfg, deps.Messenger, deps.AI, deps.Voice, deps.AudioStore, s.logger)
 	s.app.Get("/webhook", wh.Verify)
 	s.app.Post("/webhook", wh.Receive)
 }

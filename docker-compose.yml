@@ -1,0 +1,23 @@
+services:
+  bot:
+    build: .
+    ports:
+      - "${PORT:-8080}:8080"
+    env_file:
+      - .env
+    environment:
+      - ENV=production
+      - PORT=8080
+      - DATABASE_URL=/app/data/bot.db
+    volumes:
+      - bot-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  bot-data:
