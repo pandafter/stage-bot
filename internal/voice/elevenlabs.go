@@ -102,8 +102,16 @@ func (c *ElevenLabs) SpeechToText(audioData []byte) (string, error) {
 
 // TextToSpeech converts text to audio bytes (M4A) using the configured cloned voice.
 func (c *ElevenLabs) TextToSpeech(text string) ([]byte, error) {
+	spoken := SanitizeForTTS(text)
+	if spoken != text {
+		c.logger.Debug("TTS text sanitized",
+			zap.String("original", text),
+			zap.String("spoken", spoken),
+		)
+	}
+
 	payload := map[string]interface{}{
-		"text":     text,
+		"text":     spoken,
 		"model_id": "eleven_multilingual_v2",
 		"voice_settings": map[string]interface{}{
 			"stability":        0.5,
