@@ -29,9 +29,6 @@ RUN mkdir -p /app/data && chown -R app:app /app
 
 USER app
 
-EXPOSE 8080
-
-ENV PORT=8080 \
-    ENV=production
+ENV ENV=production
 
 ENTRYPOINT ["./bot"]
