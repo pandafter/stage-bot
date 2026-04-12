@@ -61,7 +61,7 @@ func Load() (*Config, error) {
 		OpenAIAPIKey:       getEnv("OPENAI_API_KEY", ""),
 		GoogleSheetID:       getEnv("GOOGLE_SHEET_ID", ""),
 		PublicURL:           getEnv("PUBLIC_URL", ""),
-		DatabaseURL:        getEnv("DATABASE_URL", "data/bot.db"),
+		DatabaseURL:        getEnv("DATABASE_URL", ""),
 		TestSenderID:       getEnv("TEST_SENDER_ID", ""),
 	}
 
@@ -95,6 +95,7 @@ func (c *Config) IsDevelopment() bool {
 func (c *Config) validate() error {
 	required := map[string]string{
 		"WEBHOOK_VERIFY_TOKEN": c.WebhookVerifyToken,
+		"DATABASE_URL":         c.DatabaseURL,
 	}
 
 	for name, val := range required {

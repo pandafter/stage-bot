@@ -1,7 +1,11 @@
 package main
 
 import (
+	"context"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"go.uber.org/zap"
 
@@ -15,13 +19,11 @@ import (
 )
 
 func main() {
-	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
-	// Initialize logger
 	var logger *zap.Logger
 	if cfg.IsDevelopment() {
 		logger, err = zap.NewDevelopment()
@@ -33,17 +35,24 @@ func main() {
 	}
 	defer logger.Sync()
 
-	// Initialize database
 	db, err := storage.NewDB(cfg.DatabaseURL, logger)
 	if err != nil {
 		logger.Fatal("failed to init database", zap.Error(err))
 	}
 	defer db.Close()
 
-	// Build dependencies
+	leadsRepo := storage.NewLeadsRepo(db)
+	convRepo := storage.NewConversationRepo(db)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	playbook := ai.NewPlaybook(leadsRepo, convRepo, logger)
+	playbook.Start(ctx)
+
 	ig := messenger.NewInstagram(cfg.PageAccessToken, cfg.InstagramAccountID, logger)
 	ks := knowledge.NewStore(cfg.GoogleSheetID, logger)
-	brain := ai.New(cfg.AnthropicAPIKey, ks, logger)
+	brain := ai.New(cfg.AnthropicAPIKey, ks, leadsRepo, convRepo, playbook, logger)
 	vc := voice.NewElevenLabs(cfg.ElevenLabsAPIKey, cfg.ElevenLabsVoiceID, logger)
 	audioStore := voice.NewAudioStore()
 
@@ -54,7 +63,6 @@ func main() {
 		AudioStore: audioStore,
 	}
 
-	// Start server
 	srv := server.New(cfg, deps, logger)
 	if err := srv.Start(); err != nil {
 		logger.Fatal("server error", zap.Error(err))

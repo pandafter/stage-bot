@@ -1,0 +1,128 @@
+package storage
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+
+	"github.com/kart-academy/instagram-bot/internal/domain"
+)
+
+// LeadOutcome tracks the final result of a lead for learning.
+type LeadOutcome string
+
+const (
+	OutcomeOpen      LeadOutcome = "open"
+	OutcomeWon       LeadOutcome = "won"
+	OutcomeLost      LeadOutcome = "lost"
+	OutcomeAbandoned LeadOutcome = "abandoned"
+)
+
+type LeadRecord struct {
+	ID            string
+	Username      string
+	TotalMessages int
+	LeadScore     int
+	State         domain.LeadState
+	Outcome       LeadOutcome
+	PriceAsked    bool
+	ScheduleAsked bool
+	BuySignal     bool
+	Objections    int
+}
+
+type LeadsRepo struct {
+	db *sql.DB
+}
+
+func NewLeadsRepo(db *DB) *LeadsRepo {
+	return &LeadsRepo{db: db.Conn()}
+}
+
+// Ensure creates the lead row if missing. Returns the current record.
+func (r *LeadsRepo) Ensure(ctx context.Context, leadID string) (*LeadRecord, error) {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO leads (id) VALUES ($1) ON CONFLICT (id) DO NOTHING`, leadID)
+	if err != nil {
+		return nil, fmt.Errorf("ensure lead: %w", err)
+	}
+	return r.Get(ctx, leadID)
+}
+
+func (r *LeadsRepo) Get(ctx context.Context, leadID string) (*LeadRecord, error) {
+	row := r.db.QueryRowContext(ctx,
+		`SELECT id, username, total_messages, lead_score, state, outcome,
+			price_asked, schedule_asked, buy_signal, objections
+		 FROM leads WHERE id = $1`, leadID)
+
+	var rec LeadRecord
+	var state, outcome string
+	err := row.Scan(&rec.ID, &rec.Username, &rec.TotalMessages, &rec.LeadScore,
+		&state, &outcome, &rec.PriceAsked, &rec.ScheduleAsked, &rec.BuySignal, &rec.Objections)
+	if err != nil {
+		return nil, fmt.Errorf("get lead: %w", err)
+	}
+	rec.State = domain.LeadState(state)
+	rec.Outcome = LeadOutcome(outcome)
+	return &rec, nil
+}
+
+// UpdateScore persists score and funnel flags after processing a message.
+func (r *LeadsRepo) UpdateScore(ctx context.Context, rec *LeadRecord) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE leads SET
+			total_messages = $2,
+			lead_score     = $3,
+			state          = $4,
+			price_asked    = $5,
+			schedule_asked = $6,
+			buy_signal     = $7,
+			objections     = $8,
+			last_seen      = NOW()
+		 WHERE id = $1`,
+		rec.ID, rec.TotalMessages, rec.LeadScore, string(rec.State),
+		rec.PriceAsked, rec.ScheduleAsked, rec.BuySignal, rec.Objections,
+	)
+	if err != nil {
+		return fmt.Errorf("update lead score: %w", err)
+	}
+	return nil
+}
+
+// SetOutcome marks a lead as won/lost/abandoned so learning can sample it.
+func (r *LeadsRepo) SetOutcome(ctx context.Context, leadID string, outcome LeadOutcome, notes string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE leads SET outcome = $2, notes = $3 WHERE id = $1`,
+		leadID, string(outcome), notes)
+	if err != nil {
+		return fmt.Errorf("set outcome: %w", err)
+	}
+	return nil
+}
+
+// ListByOutcome returns leads with a specific outcome, newest first.
+func (r *LeadsRepo) ListByOutcome(ctx context.Context, outcome LeadOutcome, limit int) ([]*LeadRecord, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, username, total_messages, lead_score, state, outcome,
+			price_asked, schedule_asked, buy_signal, objections
+		 FROM leads WHERE outcome = $1 ORDER BY last_seen DESC LIMIT $2`,
+		string(outcome), limit)
+	if err != nil {
+		return nil, fmt.Errorf("list leads: %w", err)
+	}
+	defer rows.Close()
+
+	var leads []*LeadRecord
+	for rows.Next() {
+		var rec LeadRecord
+		var state, outcomeStr string
+		if err := rows.Scan(&rec.ID, &rec.Username, &rec.TotalMessages, &rec.LeadScore,
+			&state, &outcomeStr, &rec.PriceAsked, &rec.ScheduleAsked, &rec.BuySignal, &rec.Objections); err != nil {
+			return nil, fmt.Errorf("scan lead: %w", err)
+		}
+		rec.State = domain.LeadState(state)
+		rec.Outcome = LeadOutcome(outcomeStr)
+		leads = append(leads, &rec)
+	}
+	return leads, rows.Err()
+}

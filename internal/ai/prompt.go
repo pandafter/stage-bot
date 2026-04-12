@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/kart-academy/instagram-bot/internal/domain"
+	"github.com/kart-academy/instagram-bot/internal/storage"
 )
 
 const basePrompt = `Eres un asesor de ventas por Instagram DM. Respondes como un humano real del equipo comercial.
@@ -34,7 +35,7 @@ REGLAS IMPORTANTES:
 - La pregunta final debe acercar al cliente a la decisión de compra`
 
 // strategyInstruction returns the specific prompt addon for the current strategy.
-func strategyInstruction(strategy domain.Strategy, score *domain.LeadScore) string {
+func strategyInstruction(strategy domain.Strategy, rec *storage.LeadRecord) string {
 	switch strategy {
 	case domain.StrategyWelcome:
 		return `ESTRATEGIA ACTUAL: BIENVENIDA
@@ -68,7 +69,7 @@ func strategyInstruction(strategy domain.Strategy, score *domain.LeadScore) stri
 - Envía instrucciones de pago o link
 - Confirma detalles: fecha, horario, nombre
 - Sé entusiasta pero no presiones
-- Si falta info para cerrar, pídela directamente`, score.Total)
+- Si falta info para cerrar, pídela directamente`, rec.LeadScore)
 
 	case domain.StrategyHandleObjection:
 		return `ESTRATEGIA ACTUAL: MANEJAR OBJECIÓN

@@ -50,31 +50,3 @@ const (
 	LeadStateInactive   LeadState = "inactive"
 )
 
-// Response is the output of the brain pipeline.
-type Response struct {
-	Text     string
-	Strategy Strategy
-	Intent   Intent
-	Score    int
-}
-
-// ConversationContext holds all the context needed for the brain to decide.
-type ConversationContext struct {
-	LeadID        string
-	LeadState     LeadState
-	LeadScore     int
-	History       string
-	TotalMessages int
-}
-
-// LeadScore holds the scoring data for a single lead.
-type LeadScore struct {
-	Total         int
-	MessageCount  int
-	IntentHistory []Intent
-	State         LeadState
-	ObjectionsHit int
-	PriceAsked    bool
-	ScheduleAsked bool
-	BuySignalSent bool
-}

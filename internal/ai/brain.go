@@ -1,102 +1,179 @@
 package ai
 
 import (
+	"context"
 	"strings"
-	"sync"
+	"time"
 
 	"go.uber.org/zap"
 
 	"github.com/kart-academy/instagram-bot/internal/domain"
+	"github.com/kart-academy/instagram-bot/internal/storage"
 )
 
-// Brain orchestrates AI responses for conversations.
+const (
+	historyWindow = 20
+	dbTimeout     = 5 * time.Second
+)
+
+// Brain orchestrates AI responses for conversations, backed by Postgres.
 type Brain struct {
-	claude    *Claude
-	knowledge domain.KnowledgeBase
-	scorer    *LeadScorer
-	logger    *zap.Logger
-	history   map[string][]ClaudeMessage
-	mu        sync.RWMutex
+	claude       *Claude
+	knowledge    domain.KnowledgeBase
+	leads        *storage.LeadsRepo
+	conversation *storage.ConversationRepo
+	playbook     *Playbook
+	logger       *zap.Logger
 }
 
-func New(apiKey string, ks domain.KnowledgeBase, logger *zap.Logger) *Brain {
+func New(
+	apiKey string,
+	ks domain.KnowledgeBase,
+	leads *storage.LeadsRepo,
+	conv *storage.ConversationRepo,
+	pb *Playbook,
+	logger *zap.Logger,
+) *Brain {
 	return &Brain{
-		claude:    NewClaude(apiKey, logger),
-		knowledge: ks,
-		scorer:    NewLeadScorer(),
-		logger:    logger,
-		history:   make(map[string][]ClaudeMessage),
+		claude:       NewClaude(apiKey, logger),
+		knowledge:    ks,
+		leads:        leads,
+		conversation: conv,
+		playbook:     pb,
+		logger:       logger,
 	}
 }
 
-// buildSystemPrompt creates the full prompt with knowledge context and sales strategy.
-func (b *Brain) buildSystemPrompt(strategy domain.Strategy, score *domain.LeadScore) string {
-	prompt := basePrompt
+// Process takes a user message and returns the AI response.
+// Pipeline: ensure lead -> detect intent -> update score -> select strategy -> generate -> persist.
+func (b *Brain) Process(senderID, text string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	// Inject strategy-specific instructions
-	prompt += "\n\n" + strategyInstruction(strategy, score)
+	rec, err := b.leads.Ensure(ctx, senderID)
+	if err != nil {
+		b.logger.Error("lead ensure failed", zap.String("sender", senderID), zap.Error(err))
+		return b.fallback(text), nil
+	}
+
+	intent := DetectIntent(text)
+	scoreDelta := ApplyIntent(rec, intent)
+	strategy := SelectStrategy(intent, rec)
+
+	b.logger.Info("pipeline",
+		zap.String("sender", senderID),
+		zap.String("intent", string(intent)),
+		zap.Int("score", rec.LeadScore),
+		zap.Int("score_delta", scoreDelta),
+		zap.String("state", string(rec.State)),
+		zap.String("strategy", string(strategy)),
+	)
+
+	history, err := b.loadHistory(ctx, senderID)
+	if err != nil {
+		b.logger.Warn("history load failed, continuing without", zap.Error(err))
+	}
+	history = append(history, ClaudeMessage{Role: "user", Content: text})
+
+	systemPrompt := b.buildSystemPrompt(strategy, rec)
+	reply, err := b.claude.Chat(systemPrompt, history)
+	if err != nil {
+		b.logger.Warn("claude unavailable, using fallback", zap.Error(err))
+		reply = b.fallback(text)
+	}
+
+	b.persist(ctx, senderID, text, reply, intent, strategy, scoreDelta, rec)
+	return reply, nil
+}
+
+// loadHistory pulls the last N messages from DB and formats them for Claude.
+func (b *Brain) loadHistory(ctx context.Context, senderID string) ([]ClaudeMessage, error) {
+	dbCtx, cancel := context.WithTimeout(ctx, dbTimeout)
+	defer cancel()
+
+	msgs, err := b.conversation.LastN(dbCtx, senderID, historyWindow)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]ClaudeMessage, 0, len(msgs))
+	for _, m := range msgs {
+		out = append(out, ClaudeMessage{
+			Role:    string(m.Role),
+			Content: m.Content,
+		})
+	}
+	return out, nil
+}
+
+// persist writes the user and assistant messages plus updated lead state.
+// Failures are logged but not returned — we've already replied to the user.
+func (b *Brain) persist(
+	ctx context.Context,
+	senderID, userText, reply string,
+	intent domain.Intent,
+	strategy domain.Strategy,
+	scoreDelta int,
+	rec *storage.LeadRecord,
+) {
+	dbCtx, cancel := context.WithTimeout(ctx, dbTimeout)
+	defer cancel()
+
+	userMsg := storage.ConversationMessage{
+		LeadID:      senderID,
+		Role:        storage.RoleUser,
+		Content:     userText,
+		ContentType: "text",
+		Intent:      string(intent),
+		Strategy:    string(strategy),
+		ScoreDelta:  scoreDelta,
+		ScoreAfter:  rec.LeadScore,
+	}
+	if err := b.conversation.Append(dbCtx, userMsg); err != nil {
+		b.logger.Error("persist user message", zap.Error(err))
+	}
+
+	assistantMsg := storage.ConversationMessage{
+		LeadID:      senderID,
+		Role:        storage.RoleAssistant,
+		Content:     reply,
+		ContentType: "text",
+		Intent:      string(intent),
+		Strategy:    string(strategy),
+		ScoreAfter:  rec.LeadScore,
+	}
+	if err := b.conversation.Append(dbCtx, assistantMsg); err != nil {
+		b.logger.Error("persist assistant message", zap.Error(err))
+	}
+
+	if err := b.leads.UpdateScore(dbCtx, rec); err != nil {
+		b.logger.Error("persist lead score", zap.Error(err))
+	}
+}
+
+// buildSystemPrompt creates the full prompt with knowledge, strategy and learned patterns.
+func (b *Brain) buildSystemPrompt(strategy domain.Strategy, rec *storage.LeadRecord) string {
+	prompt := basePrompt
+	prompt += "\n\n" + strategyInstruction(strategy, rec)
 
 	if b.knowledge != nil && b.knowledge.Enabled() {
-		ctx := b.knowledge.FormatContext()
-		if ctx != "" {
+		if ctx := b.knowledge.FormatContext(); ctx != "" {
 			prompt += "\n\nBASA TUS RESPUESTAS EN ESTA INFORMACIÓN REAL DEL NEGOCIO:" + ctx
 			prompt += "\n\nUSA la sección de EJEMPLOS DE VENTAS para imitar el tono y estilo real del equipo."
+		}
+	}
+
+	if b.playbook != nil {
+		if learned := b.playbook.Snapshot(); learned != "" {
+			prompt += "\n\n" + learned
 		}
 	}
 
 	return prompt
 }
 
-// Process takes a user message and returns the AI response.
-// Pipeline: detect intent -> update score -> select strategy -> generate response.
-// Falls back to keyword-based replies when Claude API is unavailable.
-func (b *Brain) Process(senderID, text string) (string, error) {
-	// Step 1: Detect intent (no lock needed, pure function)
-	intent := DetectIntent(text)
-
-	// Step 2: Update lead score
-	score := b.scorer.Update(senderID, intent)
-
-	// Step 3: Select strategy
-	strategy := SelectStrategy(intent, score)
-
-	b.logger.Info("pipeline",
-		zap.String("sender", senderID),
-		zap.String("intent", string(intent)),
-		zap.Int("score", score.Total),
-		zap.String("state", string(score.State)),
-		zap.String("strategy", string(strategy)),
-	)
-
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	// Append user message to history
-	b.history[senderID] = append(b.history[senderID], ClaudeMessage{
-		Role:    "user",
-		Content: text,
-	})
-
-	// Keep only last 20 messages to control token usage
-	if len(b.history[senderID]) > 20 {
-		b.history[senderID] = b.history[senderID][len(b.history[senderID])-20:]
-	}
-
-	// Step 4: Build strategy-aware prompt and generate response
-	systemPrompt := b.buildSystemPrompt(strategy, score)
-	response, err := b.claude.Chat(systemPrompt, b.history[senderID])
-	if err != nil {
-		b.logger.Warn("claude unavailable, using fallback", zap.Error(err))
-		response = fallbackReply(text)
-	}
-
-	// Append assistant response to history
-	b.history[senderID] = append(b.history[senderID], ClaudeMessage{
-		Role:    "assistant",
-		Content: response,
-	})
-
-	return response, nil
+func (b *Brain) fallback(text string) string {
+	return fallbackReply(text)
 }
 
 // fallbackReply returns a keyword-based response when Claude API is unavailable.

@@ -1,9 +1,8 @@
 package ai
 
 import (
-	"sync"
-
 	"github.com/kart-academy/instagram-bot/internal/domain"
+	"github.com/kart-academy/instagram-bot/internal/storage"
 )
 
 // ScoreThresholds define the sales funnel stages.
@@ -14,70 +13,33 @@ const (
 	ThresholdClose    = 81 // 81+: Close the sale (send payment link)
 )
 
-// LeadScorer tracks and calculates lead scores per sender.
-type LeadScorer struct {
-	scores map[string]*domain.LeadScore
-	mu     sync.RWMutex
-}
+// ApplyIntent updates the lead record based on a new message intent.
+// Returns the score delta applied so callers can log it per-message.
+func ApplyIntent(rec *storage.LeadRecord, intent domain.Intent) int {
+	before := rec.LeadScore
 
-func NewLeadScorer() *LeadScorer {
-	return &LeadScorer{
-		scores: make(map[string]*domain.LeadScore),
-	}
-}
+	rec.TotalMessages++
+	rec.LeadScore += 5
+	rec.LeadScore += IntentSalesWeight(intent)
 
-// Update processes a new message intent and updates the lead's score.
-func (ls *LeadScorer) Update(senderID string, intent domain.Intent) *domain.LeadScore {
-	ls.mu.Lock()
-	defer ls.mu.Unlock()
-
-	score, ok := ls.scores[senderID]
-	if !ok {
-		score = &domain.LeadScore{State: domain.LeadStateNew}
-		ls.scores[senderID] = score
-	}
-
-	score.MessageCount++
-	score.IntentHistory = append(score.IntentHistory, intent)
-
-	// Base points per message
-	score.Total += 5
-
-	// Intent-specific scoring
-	score.Total += IntentSalesWeight(intent)
-
-	// Track key signals
 	switch intent {
 	case domain.IntentPriceInquiry:
-		score.PriceAsked = true
+		rec.PriceAsked = true
 	case domain.IntentScheduleInquiry:
-		score.ScheduleAsked = true
+		rec.ScheduleAsked = true
 	case domain.IntentBuySignal, domain.IntentPaymentConfirm:
-		score.BuySignalSent = true
-	case domain.IntentObjectionPrice, domain.IntentObjectionTime, domain.IntentObjectionDoubt, domain.IntentObjectionOther:
-		score.ObjectionsHit++
+		rec.BuySignal = true
+	case domain.IntentObjectionPrice, domain.IntentObjectionTime,
+		domain.IntentObjectionDoubt, domain.IntentObjectionOther:
+		rec.Objections++
 	}
 
-	// Bonus: asked both price AND schedule = very interested
-	if score.PriceAsked && score.ScheduleAsked {
-		score.Total += 5
+	if rec.PriceAsked && rec.ScheduleAsked {
+		rec.LeadScore += 5
 	}
 
-	// Update lead state based on score
-	score.State = scoreToState(score.Total)
-
-	return score
-}
-
-// Get returns the current score for a sender (read-only).
-func (ls *LeadScorer) Get(senderID string) *domain.LeadScore {
-	ls.mu.RLock()
-	defer ls.mu.RUnlock()
-
-	if s, ok := ls.scores[senderID]; ok {
-		return s
-	}
-	return &domain.LeadScore{State: domain.LeadStateNew}
+	rec.State = scoreToState(rec.LeadScore)
+	return rec.LeadScore - before
 }
 
 // scoreToState maps a numeric score to a funnel state.
@@ -96,17 +58,17 @@ func scoreToState(total int) domain.LeadState {
 	}
 }
 
-// SelectStrategy picks the response strategy based on intent and lead score.
-func SelectStrategy(intent domain.Intent, score *domain.LeadScore) domain.Strategy {
-	// Intent-driven overrides
+// SelectStrategy picks the response strategy based on intent and lead state.
+func SelectStrategy(intent domain.Intent, rec *storage.LeadRecord) domain.Strategy {
 	switch intent {
 	case domain.IntentGreeting:
-		if score.MessageCount <= 1 {
+		if rec.TotalMessages <= 1 {
 			return domain.StrategyWelcome
 		}
 		return domain.StrategyInform
 
-	case domain.IntentObjectionPrice, domain.IntentObjectionTime, domain.IntentObjectionDoubt, domain.IntentObjectionOther:
+	case domain.IntentObjectionPrice, domain.IntentObjectionTime,
+		domain.IntentObjectionDoubt, domain.IntentObjectionOther:
 		return domain.StrategyHandleObjection
 
 	case domain.IntentPaymentConfirm:
@@ -116,7 +78,7 @@ func SelectStrategy(intent domain.Intent, score *domain.LeadScore) domain.Strate
 		return domain.StrategyClose
 
 	case domain.IntentThanks:
-		if score.BuySignalSent {
+		if rec.BuySignal {
 			return domain.StrategyConfirmSale
 		}
 		return domain.StrategyInform
@@ -125,13 +87,12 @@ func SelectStrategy(intent domain.Intent, score *domain.LeadScore) domain.Strate
 		return domain.StrategyRedirect
 	}
 
-	// Score-driven strategy
 	switch {
-	case score.Total >= ThresholdClose:
+	case rec.LeadScore >= ThresholdClose:
 		return domain.StrategyClose
-	case score.Total >= ThresholdGuide:
+	case rec.LeadScore >= ThresholdGuide:
 		return domain.StrategyGuide
-	case score.Total >= ThresholdPersuade:
+	case rec.LeadScore >= ThresholdPersuade:
 		return domain.StrategyPersuade
 	default:
 		return domain.StrategyInform
