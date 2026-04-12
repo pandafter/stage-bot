@@ -27,13 +27,14 @@ const cacheTTL = 5 * time.Minute
 
 // SheetData holds all parsed knowledge from the spreadsheet.
 type SheetData struct {
-	Empresa          string // general company info text
-	Cursos           string // courses details
-	Precios          string // pricing info
-	FAQ              string // frequently asked questions
-	Objeciones       string // objection handling
-	EjemplosVentas   string // real sales response examples
-	LinksVenta       string // payment/sale links
+	Empresa        string // general company info text
+	Cursos         string // courses details
+	Precios        string // pricing info
+	FAQ            string // frequently asked questions
+	Objeciones     string // objection handling
+	EjemplosVentas string // real sales response examples
+	LinksVenta     string // payment/sale links
+	Fechas         string // upcoming course dates and availability
 }
 
 func NewStore(sheetID string, logger *zap.Logger) *Store {
@@ -77,6 +78,7 @@ func (s *Store) Get() *SheetData {
 		"objeciones":      &data.Objeciones,
 		"ejemplos_ventas": &data.EjemplosVentas,
 		"links_venta":     &data.LinksVenta,
+		"fechas":          &data.Fechas,
 	}
 
 	for tab, dest := range tabs {
@@ -111,6 +113,7 @@ func (s *Store) FormatContext() string {
 		{"INFORMACIÓN DE LA EMPRESA", data.Empresa},
 		{"CURSOS DISPONIBLES", data.Cursos},
 		{"PRECIOS Y PLANES DE PAGO", data.Precios},
+		{"FECHAS Y DISPONIBILIDAD DE CUPOS (fuente de verdad actualizada)", data.Fechas},
 		{"PREGUNTAS FRECUENTES", data.FAQ},
 		{"MANEJO DE OBJECIONES", data.Objeciones},
 		{"EJEMPLOS DE RESPUESTAS REALES DEL EQUIPO DE VENTAS", data.EjemplosVentas},
