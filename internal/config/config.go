@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -64,11 +65,27 @@ func Load() (*Config, error) {
 		TestSenderID:       getEnv("TEST_SENDER_ID", ""),
 	}
 
+	cfg.PublicURL = normalizePublicURL(cfg.PublicURL)
+
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
 	return cfg, nil
+}
+
+// normalizePublicURL ensures the URL has an https scheme and no trailing slash.
+// Instagram requires a fully-qualified URL with scheme to fetch audio attachments.
+func normalizePublicURL(u string) string {
+	u = strings.TrimSpace(u)
+	if u == "" {
+		return u
+	}
+	u = strings.TrimRight(u, "/")
+	if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
+		u = "https://" + u
+	}
+	return u
 }
 
 func (c *Config) IsDevelopment() bool {
