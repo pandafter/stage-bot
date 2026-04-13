@@ -74,7 +74,15 @@ func (h *Handler) Receive(c *fiber.Ctx) error {
 	if h.cfg.AppSecret != "" && !h.cfg.IsDevelopment() {
 		signature := c.Get("X-Hub-Signature-256")
 		if !validateSignature(body, signature, h.cfg.AppSecret) {
-			h.logger.Warn("invalid webhook signature")
+			expected := computeSignature(body, h.cfg.AppSecret)
+			h.logger.Warn("invalid webhook signature",
+				zap.Int("secret_len", len(h.cfg.AppSecret)),
+				zap.Int("body_len", len(body)),
+				zap.String("received_sig_prefix", safePrefix(signature, 14)),
+				zap.String("computed_sig_prefix", safePrefix(expected, 14)),
+				zap.String("client_ua", c.Get("User-Agent")),
+				zap.String("src_ip", c.IP()),
+			)
 			return c.SendStatus(fiber.StatusForbidden)
 		}
 	}
@@ -247,8 +255,19 @@ func validateSignature(body []byte, signature string, appSecret string) bool {
 	if signature == "" {
 		return false
 	}
+	expected := computeSignature(body, appSecret)
+	return hmac.Equal([]byte(expected), []byte(signature))
+}
+
+func computeSignature(body []byte, appSecret string) string {
 	mac := hmac.New(sha256.New, []byte(appSecret))
 	mac.Write(body)
-	expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
-	return hmac.Equal([]byte(expected), []byte(signature))
+	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
+}
+
+func safePrefix(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }
