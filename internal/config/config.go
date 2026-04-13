@@ -49,6 +49,10 @@ type Config struct {
 	// Queue worker pool
 	WorkerConcurrency int
 	WorkerMaxAttempts int
+
+	// Claude pricing per million tokens (USD). Defaults to Sonnet rates.
+	ClaudePriceInputPerMTok  float64
+	ClaudePriceOutputPerMTok float64
 }
 
 func Load() (*Config, error) {
@@ -73,6 +77,8 @@ func Load() (*Config, error) {
 		AdminToken:         getEnv("ADMIN_TOKEN", ""),
 		WorkerConcurrency:  getIntEnv("WORKER_CONCURRENCY", 5),
 		WorkerMaxAttempts:  getIntEnv("WORKER_MAX_ATTEMPTS", 3),
+		ClaudePriceInputPerMTok:  getFloatEnv("CLAUDE_PRICE_INPUT_PER_MTOK", 3.0),
+		ClaudePriceOutputPerMTok: getFloatEnv("CLAUDE_PRICE_OUTPUT_PER_MTOK", 15.0),
 	}
 
 	cfg.PublicURL = normalizePublicURL(cfg.PublicURL)
@@ -134,4 +140,16 @@ func getIntEnv(key string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func getFloatEnv(key string, fallback float64) float64 {
+	val := os.Getenv(key)
+	if val == "" {
+		return fallback
+	}
+	f, err := strconv.ParseFloat(val, 64)
+	if err != nil {
+		return fallback
+	}
+	return f
 }

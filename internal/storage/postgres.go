@@ -112,6 +112,10 @@ func (db *DB) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_jobs_pending ON message_jobs(next_retry_at) WHERE status = 'pending'`,
 		`CREATE INDEX IF NOT EXISTS idx_jobs_sender_status ON message_jobs(sender_id, status)`,
 		`CREATE INDEX IF NOT EXISTS idx_jobs_status_created ON message_jobs(status, created_at)`,
+
+		`ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS tokens_in INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS tokens_out INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS model TEXT NOT NULL DEFAULT ''`,
 	}
 
 	for _, m := range migrations {

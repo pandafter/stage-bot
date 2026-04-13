@@ -64,8 +64,16 @@ type claudeError struct {
 	} `json:"error"`
 }
 
+// ChatResult bundles the model's text reply with usage metadata for billing/KPIs.
+type ChatResult struct {
+	Text         string
+	InputTokens  int
+	OutputTokens int
+	Model        string
+}
+
 // Chat sends a message to Claude with a system prompt and conversation history.
-func (c *Claude) Chat(systemPrompt string, messages []ClaudeMessage) (string, error) {
+func (c *Claude) Chat(systemPrompt string, messages []ClaudeMessage) (ChatResult, error) {
 	req := claudeRequest{
 		Model:     claudeModel,
 		MaxTokens: defaultMaxToks,
@@ -75,12 +83,12 @@ func (c *Claude) Chat(systemPrompt string, messages []ClaudeMessage) (string, er
 
 	body, err := json.Marshal(req)
 	if err != nil {
-		return "", fmt.Errorf("marshal request: %w", err)
+		return ChatResult{}, fmt.Errorf("marshal request: %w", err)
 	}
 
 	httpReq, err := http.NewRequest("POST", claudeAPIURL, bytes.NewReader(body))
 	if err != nil {
-		return "", fmt.Errorf("create request: %w", err)
+		return ChatResult{}, fmt.Errorf("create request: %w", err)
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -89,13 +97,13 @@ func (c *Claude) Chat(systemPrompt string, messages []ClaudeMessage) (string, er
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		return "", fmt.Errorf("send request: %w", err)
+		return ChatResult{}, fmt.Errorf("send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("read response: %w", err)
+		return ChatResult{}, fmt.Errorf("read response: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -106,16 +114,16 @@ func (c *Claude) Chat(systemPrompt string, messages []ClaudeMessage) (string, er
 			zap.String("type", apiErr.Error.Type),
 			zap.String("message", apiErr.Error.Message),
 		)
-		return "", fmt.Errorf("claude API error: %s", apiErr.Error.Message)
+		return ChatResult{}, fmt.Errorf("claude API error: %s", apiErr.Error.Message)
 	}
 
 	var claudeResp claudeResponse
 	if err := json.Unmarshal(respBody, &claudeResp); err != nil {
-		return "", fmt.Errorf("unmarshal response: %w", err)
+		return ChatResult{}, fmt.Errorf("unmarshal response: %w", err)
 	}
 
 	if len(claudeResp.Content) == 0 {
-		return "", fmt.Errorf("empty response from claude")
+		return ChatResult{}, fmt.Errorf("empty response from claude")
 	}
 
 	c.logger.Debug("claude response",
@@ -123,5 +131,10 @@ func (c *Claude) Chat(systemPrompt string, messages []ClaudeMessage) (string, er
 		zap.Int("output_tokens", claudeResp.Usage.OutputTokens),
 	)
 
-	return claudeResp.Content[0].Text, nil
+	return ChatResult{
+		Text:         claudeResp.Content[0].Text,
+		InputTokens:  claudeResp.Usage.InputTokens,
+		OutputTokens: claudeResp.Usage.OutputTokens,
+		Model:        claudeModel,
+	}, nil
 }

@@ -78,8 +78,98 @@ func (h *Handler) Dashboard(c *fiber.Ctx) error {
 	var b strings.Builder
 	b.WriteString(pageHeader("Panel — Scuderia St4ge"))
 
+	// ===== KPI cards =====
+	leadsStats, lerr := h.leads.Stats(ctx)
+	usage, uerr := h.conv.AggregateUsage(ctx)
+
+	priceIn := h.cfg.ClaudePriceInputPerMTok
+	priceOut := h.cfg.ClaudePriceOutputPerMTok
+
+	cost := func(in, out int64) float64 {
+		return float64(in)/1_000_000*priceIn + float64(out)/1_000_000*priceOut
+	}
+	conversion := 0.0
+	closed := leadsStats.Won + leadsStats.Lost
+	if closed > 0 {
+		conversion = float64(leadsStats.Won) / float64(closed) * 100
+	}
+	costPerReply24h := 0.0
+	if usage.Last24h.AssistantReplies > 0 {
+		costPerReply24h = cost(usage.Last24h.TokensIn, usage.Last24h.TokensOut) / float64(usage.Last24h.AssistantReplies)
+	}
+
+	b.WriteString(`<section class="kpis">`)
+
+	// Leads
+	b.WriteString(`<div class="kpi-group"><h3>🏁 Leads</h3><div class="cards">`)
+	if lerr != nil {
+		fmt.Fprintf(&b, `<div class="card bad">Error: %s</div>`, html.EscapeString(lerr.Error()))
+	} else {
+		b.WriteString(kpiCard("Total", fmt.Sprintf("%d", leadsStats.Total), "todos los leads", ""))
+		b.WriteString(kpiCard("Abiertos", fmt.Sprintf("%d", leadsStats.Open), "en conversación", "accent-blue"))
+		b.WriteString(kpiCard("Ganados", fmt.Sprintf("%d", leadsStats.Won), "venta cerrada", "accent-green"))
+		b.WriteString(kpiCard("Perdidos", fmt.Sprintf("%d", leadsStats.Lost), "sin cierre", "accent-red"))
+		b.WriteString(kpiCard("Conversión", fmt.Sprintf("%.1f%%", conversion),
+			fmt.Sprintf("%d cerrados", closed), "accent-purple"))
+		b.WriteString(kpiCard("Hot leads", fmt.Sprintf("%d", leadsStats.Hot), "score ≥ 70", "accent-orange"))
+	}
+	b.WriteString(`</div></div>`)
+
+	// Activity
+	b.WriteString(`<div class="kpi-group"><h3>💬 Actividad</h3><div class="cards">`)
+	if uerr != nil {
+		fmt.Fprintf(&b, `<div class="card bad">Error: %s</div>`, html.EscapeString(uerr.Error()))
+	} else {
+		b.WriteString(kpiCard("Mensajes 24h", fmt.Sprintf("%d", usage.Last24h.Messages),
+			fmt.Sprintf("%d del bot · %d del usuario", usage.Last24h.AssistantReplies, usage.Last24h.UserMessages), "accent-blue"))
+		b.WriteString(kpiCard("Mensajes 7d", fmt.Sprintf("%d", usage.Last7d.Messages),
+			fmt.Sprintf("%d del bot", usage.Last7d.AssistantReplies), ""))
+		b.WriteString(kpiCard("Mensajes total", fmt.Sprintf("%d", usage.Total.Messages),
+			fmt.Sprintf("%d del bot", usage.Total.AssistantReplies), ""))
+		b.WriteString(kpiCard("Score promedio", fmt.Sprintf("%.1f", leadsStats.AvgScore), "todos los leads", "accent-purple"))
+	}
+	b.WriteString(`</div></div>`)
+
+	// Costs
+	b.WriteString(`<div class="kpi-group"><h3>💰 Costos (Claude)</h3><div class="cards">`)
+	if uerr == nil {
+		b.WriteString(kpiCard("Gasto 24h",
+			fmt.Sprintf("$%.4f", cost(usage.Last24h.TokensIn, usage.Last24h.TokensOut)),
+			fmt.Sprintf("%s in · %s out", fmtTokens(usage.Last24h.TokensIn), fmtTokens(usage.Last24h.TokensOut)),
+			"accent-green"))
+		b.WriteString(kpiCard("Gasto 7d",
+			fmt.Sprintf("$%.3f", cost(usage.Last7d.TokensIn, usage.Last7d.TokensOut)),
+			fmt.Sprintf("%s in · %s out", fmtTokens(usage.Last7d.TokensIn), fmtTokens(usage.Last7d.TokensOut)),
+			"accent-green"))
+		b.WriteString(kpiCard("Gasto total",
+			fmt.Sprintf("$%.3f", cost(usage.Total.TokensIn, usage.Total.TokensOut)),
+			fmt.Sprintf("%s in · %s out", fmtTokens(usage.Total.TokensIn), fmtTokens(usage.Total.TokensOut)),
+			"accent-purple"))
+		b.WriteString(kpiCard("$/respuesta 24h",
+			fmt.Sprintf("$%.5f", costPerReply24h),
+			fmt.Sprintf("tarifa: $%.2f/$%.2f por Mtok", priceIn, priceOut),
+			""))
+	}
+	b.WriteString(`</div></div>`)
+
+	b.WriteString(`</section>`)
+
+	// Top leads by cost
+	if topLeads, err := h.conv.TopLeadsByCost(ctx, 5); err == nil && len(topLeads) > 0 {
+		b.WriteString(`<h2>Top 5 leads por costo</h2><table class="leads"><tr><th>Lead ID</th><th>Respuestas IA</th><th>Tokens in</th><th>Tokens out</th><th>Costo</th><th></th></tr>`)
+		for _, lc := range topLeads {
+			fmt.Fprintf(&b, `<tr><td class="mono">%s</td><td>%d</td><td>%s</td><td>%s</td><td><strong>$%.4f</strong></td><td><a href="/admin/lead/%s?token=%s">ver</a></td></tr>`,
+				html.EscapeString(lc.LeadID), lc.Messages,
+				fmtTokens(lc.TokensIn), fmtTokens(lc.TokensOut),
+				cost(lc.TokensIn, lc.TokensOut),
+				html.EscapeString(lc.LeadID), token,
+			)
+		}
+		b.WriteString(`</table>`)
+	}
+
 	// Config health
-	b.WriteString(`<h2>Estado de configuración</h2><table class="kv">`)
+	b.WriteString(`<details class="collapsible"><summary><h2 style="display:inline">Estado de configuración</h2></summary><table class="kv">`)
 	rows := []struct {
 		name string
 		set  bool
@@ -123,7 +213,7 @@ func (h *Handler) Dashboard(c *fiber.Ctx) error {
 		fmt.Fprintf(&b, `<tr><td>%s</td><td>%s</td><td class="mono">%s</td><td>%s</td></tr>`,
 			r.name, status, html.EscapeString(r.val), warnHTML)
 	}
-	b.WriteString(`</table>`)
+	b.WriteString(`</table></details>`)
 
 	// API ping buttons
 	b.WriteString(`<h2>Probar APIs</h2>`)
@@ -817,6 +907,28 @@ func (h *Handler) QueueRetry(c *fiber.Ctx) error {
 	return c.Redirect("/admin/queue?token="+h.cfg.AdminToken, fiber.StatusSeeOther)
 }
 
+// kpiCard renders a single metric tile.
+func kpiCard(label, value, sub, accent string) string {
+	cls := "card"
+	if accent != "" {
+		cls += " " + accent
+	}
+	return fmt.Sprintf(`<div class="%s"><div class="card-label">%s</div><div class="card-value">%s</div><div class="card-sub">%s</div></div>`,
+		cls, html.EscapeString(label), html.EscapeString(value), html.EscapeString(sub))
+}
+
+// fmtTokens formats a token count as 1.2k / 3.4M etc.
+func fmtTokens(n int64) string {
+	switch {
+	case n < 1000:
+		return fmt.Sprintf("%d", n)
+	case n < 1_000_000:
+		return fmt.Sprintf("%.1fk", float64(n)/1000)
+	default:
+		return fmt.Sprintf("%.2fM", float64(n)/1_000_000)
+	}
+}
+
 func maskToken(s string) string {
 	if s == "" {
 		return ""
@@ -860,34 +972,94 @@ func pageHeader(title string) string {
 	return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>` + html.EscapeString(title) + `</title>
 <style>
-body{font-family:-apple-system,system-ui,sans-serif;max-width:1100px;margin:2em auto;padding:0 1em;color:#222;background:#fafafa}
-h1,h2{color:#111}
-.mono{font-family:SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em}
-table{border-collapse:collapse;margin:.5em 0 1.5em;width:100%}
-table.kv td{padding:.4em .8em;border-bottom:1px solid #eee;vertical-align:top}
-table.kv td:first-child{font-weight:600;width:200px}
-table.leads th,table.leads td{padding:.4em .6em;border-bottom:1px solid #eee;text-align:left;font-size:.92em}
-table.leads th{background:#f0f0f0}
-tr.unanswered{background:#fff6d6}
-.ok{color:#0a7c2f;font-weight:600}
-.bad{color:#b00020;font-weight:600}
-.warn{color:#b00020;font-size:.88em;margin-top:.3em}
-.btn{display:inline-block;padding:.5em 1em;margin:.25em;background:#222;color:#fff;text-decoration:none;border-radius:4px;font-size:.9em}
+:root{
+  --bg:#f5f6fa;--surface:#fff;--ink:#1a1d29;--ink-soft:#5a6075;--line:#e6e8ef;
+  --brand:#2a3142;--brand-ink:#fff;--accent:#4f46e5;
+  --green:#10b981;--green-soft:#d1fae5;--green-ink:#065f46;
+  --blue:#3b82f6;--blue-soft:#dbeafe;--blue-ink:#1e3a8a;
+  --red:#ef4444;--red-soft:#fee2e2;--red-ink:#991b1b;
+  --orange:#f97316;--orange-soft:#ffedd5;--orange-ink:#9a3412;
+  --purple:#8b5cf6;--purple-soft:#ede9fe;--purple-ink:#5b21b6;
+  --amber:#f59e0b;--amber-soft:#fef3c7;--amber-ink:#92400e;
+}
+*{box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;max-width:1200px;margin:2em auto;padding:0 1.2em;color:var(--ink);background:var(--bg);line-height:1.5}
+h1{font-size:1.7em;margin:0 0 .8em;letter-spacing:-.01em}
+h2{font-size:1.15em;margin:1.8em 0 .8em;color:var(--ink);letter-spacing:-.005em}
+h3{font-size:.95em;margin:0 0 .6em;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.mono{font-family:'SF Mono',Menlo,Consolas,monospace;font-size:.88em}
+
+/* KPI cards */
+.kpis{display:flex;flex-direction:column;gap:1.4em;margin-bottom:2em}
+.kpi-group{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:1em 1.2em}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.7em}
+.card{background:#fafbfd;border:1px solid var(--line);border-radius:8px;padding:.85em .9em;border-left:4px solid var(--ink-soft);transition:transform .1s ease,box-shadow .1s ease}
+.card:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.card-label{font-size:.72em;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-bottom:.3em}
+.card-value{font-size:1.5em;font-weight:700;color:var(--ink);line-height:1.1;letter-spacing:-.01em}
+.card-sub{font-size:.75em;color:var(--ink-soft);margin-top:.3em}
+.card.accent-blue{border-left-color:var(--blue);background:linear-gradient(to right,var(--blue-soft) 0,#fafbfd 30%)}
+.card.accent-green{border-left-color:var(--green);background:linear-gradient(to right,var(--green-soft) 0,#fafbfd 30%)}
+.card.accent-red{border-left-color:var(--red);background:linear-gradient(to right,var(--red-soft) 0,#fafbfd 30%)}
+.card.accent-orange{border-left-color:var(--orange);background:linear-gradient(to right,var(--orange-soft) 0,#fafbfd 30%)}
+.card.accent-purple{border-left-color:var(--purple);background:linear-gradient(to right,var(--purple-soft) 0,#fafbfd 30%)}
+
+/* Tables */
+table{border-collapse:collapse;margin:.4em 0 1.4em;width:100%;background:var(--surface);border-radius:8px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+table.kv td{padding:.55em .9em;border-bottom:1px solid var(--line);vertical-align:top;font-size:.88em}
+table.kv tr:last-child td{border-bottom:none}
+table.kv td:first-child{font-weight:600;width:220px;color:var(--ink-soft)}
+table.leads th,table.leads td{padding:.6em .8em;border-bottom:1px solid var(--line);text-align:left;font-size:.88em}
+table.leads th{background:#f0f2f7;color:var(--ink-soft);text-transform:uppercase;font-size:.72em;letter-spacing:.05em;font-weight:600}
+table.leads tr:last-child td{border-bottom:none}
+table.leads tr:hover{background:#fafbfd}
+tr.unanswered{background:var(--amber-soft)!important}
+tr.unanswered:hover{background:#fde7a3!important}
+
+/* Status */
+.ok{color:var(--green-ink);font-weight:600;font-size:.82em;background:var(--green-soft);padding:.15em .55em;border-radius:10px;display:inline-block}
+.bad{color:var(--red-ink);font-weight:600;font-size:.82em;background:var(--red-soft);padding:.15em .55em;border-radius:10px;display:inline-block}
+.warn{color:var(--red-ink);font-size:.82em;margin-top:.3em}
+
+/* Buttons */
+.btn{display:inline-block;padding:.5em 1.05em;margin:.2em .25em .2em 0;background:var(--brand);color:var(--brand-ink);text-decoration:none;border-radius:6px;font-size:.85em;border:none;cursor:pointer;font-family:inherit;font-weight:500;transition:background .12s}
 .btn:hover{background:#000}
-.chat{display:flex;flex-direction:column;gap:.4em;max-width:750px}
-.bubble{padding:.6em .9em;border-radius:10px;max-width:85%;word-wrap:break-word}
-.bubble.user{background:#fff;border:1px solid #ddd;align-self:flex-start}
-.bubble.bot{background:#dbeafe;align-self:flex-end}
-.bubble .meta{font-size:.72em;color:#666;margin-top:.3em}
-.badge{display:inline-block;padding:.25em .6em;border-radius:12px;font-size:.85em;margin-right:.4em}
-.badge.ok{background:#dcfce7;color:#065f46}
-.badge.warn-badge{background:#fef3c7;color:#92400e}
-.badge.bad-badge{background:#fee2e2;color:#991b1b}
-form.manual-send{background:#fff;padding:1em;border:1px solid #ddd;border-radius:6px;max-width:700px}
-form.manual-send label{display:block;margin:.6em 0;font-size:.9em;color:#444;font-weight:600}
-form.manual-send input,form.manual-send select,form.manual-send textarea{display:block;width:100%;padding:.5em;border:1px solid #ccc;border-radius:4px;font-size:.95em;margin-top:.25em;font-family:inherit;box-sizing:border-box}
-form.manual-send textarea{resize:vertical}
-form.manual-send button{margin-top:.5em}
+button.btn{padding:.55em 1.1em}
+
+/* Chat bubbles */
+.chat{display:flex;flex-direction:column;gap:.5em;max-width:780px;margin-top:.6em}
+.bubble{padding:.65em .95em;border-radius:14px;max-width:82%;word-wrap:break-word;font-size:.93em}
+.bubble.user{background:var(--surface);border:1px solid var(--line);align-self:flex-start;border-bottom-left-radius:4px}
+.bubble.bot{background:var(--blue-soft);align-self:flex-end;border-bottom-right-radius:4px}
+.bubble .meta{font-size:.7em;color:var(--ink-soft);margin-top:.35em;opacity:.85}
+
+/* Badges */
+.badge{display:inline-block;padding:.25em .65em;border-radius:12px;font-size:.78em;margin-right:.4em;font-weight:600}
+.badge.ok{background:var(--green-soft);color:var(--green-ink)}
+.badge.warn-badge{background:var(--amber-soft);color:var(--amber-ink)}
+.badge.bad-badge{background:var(--red-soft);color:var(--red-ink)}
+
+/* Forms */
+form.manual-send{background:var(--surface);padding:1.2em;border:1px solid var(--line);border-radius:10px;max-width:720px}
+form.manual-send label{display:block;margin:.7em 0 .2em;font-size:.85em;color:var(--ink-soft);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+form.manual-send input,form.manual-send select,form.manual-send textarea{display:block;width:100%;padding:.6em .7em;border:1px solid var(--line);border-radius:6px;font-size:.92em;margin-top:.25em;font-family:inherit;background:#fafbfd;transition:border-color .12s,background .12s}
+form.manual-send input:focus,form.manual-send select:focus,form.manual-send textarea:focus{outline:none;border-color:var(--accent);background:#fff}
+form.manual-send textarea{resize:vertical;min-height:5em}
+form.manual-send button{margin-top:.8em}
+
+/* Collapsibles */
+details.collapsible{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:.6em 1em;margin:1em 0}
+details.collapsible summary{cursor:pointer;font-weight:600;color:var(--ink-soft);outline:none;padding:.3em 0;list-style:none}
+details.collapsible summary::-webkit-details-marker{display:none}
+details.collapsible summary::before{content:"▸ ";color:var(--ink-soft);transition:transform .15s}
+details.collapsible[open] summary::before{content:"▾ "}
+details.collapsible[open] summary{border-bottom:1px solid var(--line);margin-bottom:.6em}
+
+hr{border:none;border-top:1px solid var(--line);margin:2em 0 1em}
+small{color:var(--ink-soft)}
+code{background:var(--blue-soft);color:var(--blue-ink);padding:.1em .35em;border-radius:3px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:.86em}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
 </style></head><body><h1>` + html.EscapeString(title) + `</h1>`
 }
 

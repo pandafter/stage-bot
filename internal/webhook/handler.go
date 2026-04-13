@@ -150,8 +150,6 @@ func (h *Handler) Process(ctx context.Context, senderID string, payload []byte) 
 
 // process runs the full per-message pipeline (STT if audio, Brain, TTS if needed, send).
 func (h *Handler) process(ctx context.Context, msg IncomingMessage) error {
-	_ = ctx // ctx is honored by network calls through Go's default client setup; explicit wiring is future work.
-
 	h.messenger.MarkSeen(msg.SenderID)
 	h.messenger.SetTypingOn(msg.SenderID)
 
@@ -194,6 +192,14 @@ func (h *Handler) process(ctx context.Context, msg IncomingMessage) error {
 	reply, err := h.ai.Process(msg.SenderID, inputText)
 	if err != nil {
 		return fmt.Errorf("brain: %w", err)
+	}
+
+	// Pequeño delay para que la respuesta no sea instantánea (evita marcar visto
+	// si el usuario ya cerró la conversación).
+	select {
+	case <-time.After(2 * time.Second):
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 
 	if respondWithAudio && h.voice != nil && h.voice.Enabled() {

@@ -76,14 +76,14 @@ func (b *Brain) Process(senderID, text string) (string, error) {
 	history = append(history, ClaudeMessage{Role: "user", Content: text})
 
 	systemPrompt := b.buildSystemPrompt(strategy, rec)
-	reply, err := b.claude.Chat(systemPrompt, history)
+	chat, err := b.claude.Chat(systemPrompt, history)
 	if err != nil {
 		b.logger.Warn("claude unavailable, using fallback", zap.Error(err))
-		reply = b.fallback(text)
+		chat = ChatResult{Text: b.fallback(text)}
 	}
 
-	b.persist(ctx, senderID, text, reply, intent, strategy, scoreDelta, rec)
-	return reply, nil
+	b.persist(ctx, senderID, text, chat, intent, strategy, scoreDelta, rec)
+	return chat.Text, nil
 }
 
 // loadHistory pulls the last N messages from DB and formats them for Claude.
@@ -110,7 +110,8 @@ func (b *Brain) loadHistory(ctx context.Context, senderID string) ([]ClaudeMessa
 // Failures are logged but not returned — we've already replied to the user.
 func (b *Brain) persist(
 	ctx context.Context,
-	senderID, userText, reply string,
+	senderID, userText string,
+	chat ChatResult,
 	intent domain.Intent,
 	strategy domain.Strategy,
 	scoreDelta int,
@@ -136,11 +137,14 @@ func (b *Brain) persist(
 	assistantMsg := storage.ConversationMessage{
 		LeadID:      senderID,
 		Role:        storage.RoleAssistant,
-		Content:     reply,
+		Content:     chat.Text,
 		ContentType: "text",
 		Intent:      string(intent),
 		Strategy:    string(strategy),
 		ScoreAfter:  rec.LeadScore,
+		TokensIn:    chat.InputTokens,
+		TokensOut:   chat.OutputTokens,
+		Model:       chat.Model,
 	}
 	if err := b.conversation.Append(dbCtx, assistantMsg); err != nil {
 		b.logger.Error("persist assistant message", zap.Error(err))

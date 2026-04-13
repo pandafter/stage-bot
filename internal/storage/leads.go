@@ -89,6 +89,42 @@ func (r *LeadsRepo) UpdateScore(ctx context.Context, rec *LeadRecord) error {
 	return nil
 }
 
+// LeadsStats summarizes the funnel for the dashboard.
+type LeadsStats struct {
+	Total      int
+	Open       int
+	Won        int
+	Lost       int
+	Abandoned  int
+	Hot        int     // score >= 70
+	AvgScore   float64 // across all leads
+	WithBuySig int     // buy_signal = true
+	PriceAsked int     // price_asked = true
+}
+
+// Stats aggregates lead-funnel metrics in a single round trip.
+func (r *LeadsRepo) Stats(ctx context.Context) (LeadsStats, error) {
+	var s LeadsStats
+	row := r.db.QueryRowContext(ctx, `
+		SELECT
+			COUNT(*),
+			COUNT(*) FILTER (WHERE outcome = 'open'),
+			COUNT(*) FILTER (WHERE outcome = 'won'),
+			COUNT(*) FILTER (WHERE outcome = 'lost'),
+			COUNT(*) FILTER (WHERE outcome = 'abandoned'),
+			COUNT(*) FILTER (WHERE lead_score >= 70),
+			COALESCE(AVG(lead_score)::float, 0),
+			COUNT(*) FILTER (WHERE buy_signal = TRUE),
+			COUNT(*) FILTER (WHERE price_asked = TRUE)
+		FROM leads
+	`)
+	if err := row.Scan(&s.Total, &s.Open, &s.Won, &s.Lost, &s.Abandoned,
+		&s.Hot, &s.AvgScore, &s.WithBuySig, &s.PriceAsked); err != nil {
+		return s, fmt.Errorf("leads stats: %w", err)
+	}
+	return s, nil
+}
+
 // SetOutcome marks a lead as won/lost/abandoned so learning can sample it.
 func (r *LeadsRepo) SetOutcome(ctx context.Context, leadID string, outcome LeadOutcome, notes string) error {
 	_, err := r.db.ExecContext(ctx,
