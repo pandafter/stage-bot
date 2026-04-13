@@ -74,11 +74,13 @@ func (s *Server) setupRoutes(deps Dependencies) {
 	s.app.Post("/webhook", wh.Receive)
 
 	if deps.Leads != nil && deps.Conversation != nil {
-		ah := admin.NewHandler(s.cfg, deps.Leads, deps.Conversation, s.logger)
+		ah := admin.NewHandler(s.cfg, deps.Leads, deps.Conversation, deps.Messenger, deps.AI, s.logger)
 		adminGroup := s.app.Group("/admin", ah.Auth)
 		adminGroup.Get("/", ah.Dashboard)
 		adminGroup.Get("", ah.Dashboard)
 		adminGroup.Get("/lead/:id", ah.LeadDetail)
+		adminGroup.Post("/lead/:id/retake", ah.RetakeLead)
+		adminGroup.Get("/instagram/conversations", ah.InstagramConversations)
 		adminGroup.Get("/ping/claude", ah.PingClaude)
 		adminGroup.Get("/ping/elevenlabs", ah.PingElevenLabs)
 		adminGroup.Get("/ping/instagram", ah.PingInstagram)

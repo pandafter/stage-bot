@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -15,24 +16,36 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/kart-academy/instagram-bot/internal/config"
+	"github.com/kart-academy/instagram-bot/internal/domain"
 	"github.com/kart-academy/instagram-bot/internal/storage"
 )
 
 type Handler struct {
-	cfg      *config.Config
-	leads    *storage.LeadsRepo
-	conv     *storage.ConversationRepo
-	logger   *zap.Logger
-	httpCli  *http.Client
+	cfg       *config.Config
+	leads     *storage.LeadsRepo
+	conv      *storage.ConversationRepo
+	messenger domain.Messenger
+	ai        domain.AIEngine
+	logger    *zap.Logger
+	httpCli   *http.Client
 }
 
-func NewHandler(cfg *config.Config, leads *storage.LeadsRepo, conv *storage.ConversationRepo, logger *zap.Logger) *Handler {
+func NewHandler(
+	cfg *config.Config,
+	leads *storage.LeadsRepo,
+	conv *storage.ConversationRepo,
+	messenger domain.Messenger,
+	ai domain.AIEngine,
+	logger *zap.Logger,
+) *Handler {
 	return &Handler{
-		cfg:     cfg,
-		leads:   leads,
-		conv:    conv,
-		logger:  logger,
-		httpCli: &http.Client{Timeout: 10 * time.Second},
+		cfg:       cfg,
+		leads:     leads,
+		conv:      conv,
+		messenger: messenger,
+		ai:        ai,
+		logger:    logger,
+		httpCli:   &http.Client{Timeout: 15 * time.Second},
 	}
 }
 
@@ -80,8 +93,20 @@ func (h *Handler) Dashboard(c *fiber.Ctx) error {
 		{"GOOGLE_SHEET_ID", h.cfg.GoogleSheetID != "", h.cfg.GoogleSheetID, ""},
 		{"PUBLIC_URL", h.cfg.PublicURL != "", h.cfg.PublicURL, ""},
 		{"DATABASE_URL", h.cfg.DatabaseURL != "", "set", ""},
-		{"TEST_SENDER_ID", h.cfg.TestSenderID != "", h.cfg.TestSenderID, testSenderWarning(h.cfg.TestSenderID)},
 	}
+	// TEST_SENDER_ID: empty is the GOOD state in prod (bot responde a todos).
+	testOK := h.cfg.TestSenderID == ""
+	testVal := h.cfg.TestSenderID
+	if testOK {
+		testVal = "(vacío — bot responde a todos ✓)"
+	}
+	rows = append(rows, struct {
+		name string
+		set  bool
+		val  string
+		warn string
+	}{"TEST_SENDER_ID", testOK, testVal, testSenderWarning(h.cfg.TestSenderID)})
+
 	for _, r := range rows {
 		status := `<span class="ok">OK</span>`
 		if !r.set {
@@ -102,6 +127,11 @@ func (h *Handler) Dashboard(c *fiber.Ctx) error {
 		<a class="btn" href="/admin/ping/elevenlabs?token=%s">Probar ElevenLabs</a>
 		<a class="btn" href="/admin/ping/instagram?token=%s">Probar Instagram Graph</a></p>`,
 		token, token, token)
+
+	// Real Instagram conversations (via Meta API)
+	b.WriteString(`<h2>Conversaciones reales de Instagram</h2>`)
+	fmt.Fprintf(&b, `<p><a class="btn" href="/admin/instagram/conversations?token=%s">Ver DMs reales de Meta (últimas 24h)</a></p>`, token)
+	b.WriteString(`<p><small>Lista directa desde Meta Graph API, independiente del bot. Requiere permiso <code>instagram_manage_messages</code>.</small></p>`)
 
 	// Recent leads
 	b.WriteString(`<h2>Últimos leads (24h)</h2>`)
@@ -181,6 +211,13 @@ func (h *Handler) LeadDetail(c *fiber.Ctx) error {
 	</table>`,
 		html.EscapeString(lead.Username), lead.LeadScore, string(lead.State), string(lead.Outcome),
 		lead.TotalMessages, lead.PriceAsked, lead.ScheduleAsked, lead.BuySignal, lead.Objections)
+
+	fmt.Fprintf(&b, `<h2>Acciones</h2>
+	<form method="POST" action="/admin/lead/%s/retake?token=%s" style="display:inline">
+		<button class="btn" type="submit">Retomar conversación ahora (bot responde)</button>
+	</form>
+	<p><small>Hace que el bot lea el historial y mande un mensaje para empujar al cierre. Si el AI considera que ya no aplica, devuelve SKIP.</small></p>`,
+		html.EscapeString(leadID), h.cfg.AdminToken)
 
 	b.WriteString(`<h2>Conversación completa</h2>`)
 	if len(msgs) == 0 {
@@ -264,6 +301,157 @@ func (h *Handler) PingElevenLabs(c *fiber.Ctx) error {
 		"body":        truncate(buf.String(), 500),
 	}
 	return c.JSON(result)
+}
+
+// InstagramConversations pulls the real list of DMs from Meta Graph API and renders them.
+func (h *Handler) InstagramConversations(c *fiber.Ctx) error {
+	if h.cfg.PageAccessToken == "" {
+		return c.Status(fiber.StatusBadRequest).SendString("PAGE_ACCESS_TOKEN no configurada")
+	}
+
+	q := url.Values{}
+	q.Set("platform", "instagram")
+	q.Set("fields", "participants,updated_time,messages.limit(3){from,message,created_time}")
+	q.Set("access_token", h.cfg.PageAccessToken)
+	q.Set("limit", "50")
+	apiURL := "https://graph.instagram.com/v21.0/me/conversations?" + q.Encode()
+
+	resp, err := h.httpCli.Get(apiURL)
+	if err != nil {
+		return c.Type("txt").SendString("Error red: " + err.Error())
+	}
+	defer resp.Body.Close()
+	buf := new(bytes.Buffer)
+	_, _ = buf.ReadFrom(resp.Body)
+
+	var parsed struct {
+		Data []struct {
+			ID           string `json:"id"`
+			UpdatedTime  string `json:"updated_time"`
+			Participants struct {
+				Data []struct {
+					ID       string `json:"id"`
+					Username string `json:"username"`
+				} `json:"data"`
+			} `json:"participants"`
+			Messages struct {
+				Data []struct {
+					ID          string `json:"id"`
+					Message     string `json:"message"`
+					CreatedTime string `json:"created_time"`
+					From        struct {
+						ID       string `json:"id"`
+						Username string `json:"username"`
+					} `json:"from"`
+				} `json:"data"`
+			} `json:"messages"`
+		} `json:"data"`
+		Error map[string]any `json:"error"`
+	}
+	_ = json.Unmarshal(buf.Bytes(), &parsed)
+
+	var b strings.Builder
+	b.WriteString(pageHeader("Conversaciones Instagram (últimas 24h)"))
+	fmt.Fprintf(&b, `<p><a href="/admin?token=%s">&larr; volver al panel</a></p>`, h.cfg.AdminToken)
+
+	if resp.StatusCode != http.StatusOK || parsed.Error != nil {
+		fmt.Fprintf(&b, `<div class="warn"><strong>Meta devolvió error (status %d)</strong></div>`, resp.StatusCode)
+		fmt.Fprintf(&b, `<pre class="mono" style="background:#fff;padding:1em;border:1px solid #ddd;white-space:pre-wrap">%s</pre>`, html.EscapeString(truncate(buf.String(), 2000)))
+		fmt.Fprintf(&b, `<p><strong>Causas comunes:</strong><br>
+			• Falta el permiso <code>instagram_manage_messages</code> en la app de Meta.<br>
+			• La app está en modo desarrollo y tu cuenta no es Instagram Tester.<br>
+			• El <code>PAGE_ACCESS_TOKEN</code> expiró o no tiene scope suficiente.</p>`)
+		b.WriteString(pageFooter())
+		c.Set("Content-Type", "text/html; charset=utf-8")
+		return c.SendString(b.String())
+	}
+
+	cutoff := time.Now().Add(-24 * time.Hour)
+	shown := 0
+	b.WriteString(`<table class="leads"><tr><th>Usuario</th><th>Scoped ID</th><th>Último mensaje</th><th>De</th><th>Cuándo</th><th></th></tr>`)
+	for _, conv := range parsed.Data {
+		updated, _ := time.Parse(time.RFC3339, conv.UpdatedTime)
+		if updated.Before(cutoff) {
+			continue
+		}
+		shown++
+		var theirUser, theirID string
+		for _, p := range conv.Participants.Data {
+			if p.ID != h.cfg.InstagramAccountID {
+				theirUser, theirID = p.Username, p.ID
+				break
+			}
+		}
+		if theirUser == "" {
+			theirUser = "(desconocido)"
+		}
+
+		lastMsgText, lastFrom, lastWhen := "—", "", ""
+		if len(conv.Messages.Data) > 0 {
+			m := conv.Messages.Data[0]
+			lastMsgText = truncate(m.Message, 120)
+			if m.From.ID == h.cfg.InstagramAccountID {
+				lastFrom = "bot/staff"
+			} else {
+				lastFrom = "usuario"
+			}
+			t, _ := time.Parse(time.RFC3339, m.CreatedTime)
+			lastWhen = relTime(t)
+		}
+
+		retakeBtn := ""
+		if theirID != "" {
+			retakeBtn = fmt.Sprintf(`<form method="POST" action="/admin/lead/%s/retake?token=%s" style="display:inline"><button class="btn" type="submit">Retomar</button></form>`,
+				html.EscapeString(theirID), h.cfg.AdminToken)
+		}
+		fmt.Fprintf(&b, `<tr><td>@%s</td><td class="mono">%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>`,
+			html.EscapeString(theirUser),
+			html.EscapeString(theirID),
+			html.EscapeString(lastMsgText),
+			html.EscapeString(lastFrom),
+			html.EscapeString(lastWhen),
+			retakeBtn,
+		)
+	}
+	b.WriteString(`</table>`)
+	if shown == 0 {
+		b.WriteString(`<p><em>No hay conversaciones con actividad en las últimas 24h.</em></p>`)
+	}
+
+	b.WriteString(pageFooter())
+	c.Set("Content-Type", "text/html; charset=utf-8")
+	return c.SendString(b.String())
+}
+
+// RetakeLead runs the Brain pipeline with a synthetic follow-up input and sends the reply.
+func (h *Handler) RetakeLead(c *fiber.Ctx) error {
+	leadID := c.Params("id")
+	if leadID == "" {
+		return c.Status(fiber.StatusBadRequest).SendString("lead id requerido")
+	}
+	if h.ai == nil || h.messenger == nil {
+		return c.Status(fiber.StatusServiceUnavailable).SendString("AI o Messenger no configurados")
+	}
+
+	synthetic := "[SISTEMA INTERNO — NO ES MENSAJE DEL CLIENTE] El cliente quedó sin respuesta. Lee el historial completo de la conversación, detecta en qué punto del funnel estaba, y retoma con un mensaje corto, cálido y orientado al siguiente paso. Si la conversación ya estaba cerrada (venta hecha o cliente dijo no definitivo), responde solo con la palabra SKIP."
+
+	reply, err := h.ai.Process(leadID, synthetic)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("AI error: " + err.Error())
+	}
+	if strings.TrimSpace(strings.ToUpper(reply)) == "SKIP" {
+		return c.Type("txt").SendString("El AI decidió saltarse este lead (conversación cerrada o terminada).")
+	}
+
+	if err := h.messenger.SendText(leadID, reply); err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Error al enviar: " + err.Error())
+	}
+
+	h.logger.Info("retake sent",
+		zap.String("lead_id", leadID),
+		zap.String("reply", truncate(reply, 120)),
+	)
+	return c.Type("txt").SendString("OK — mensaje enviado a " + leadID + ":\n\n" + reply)
 }
 
 // PingInstagram tests reachability of Instagram Graph API using the page token.
