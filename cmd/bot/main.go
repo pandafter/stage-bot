@@ -13,9 +13,11 @@ import (
 	"github.com/kart-academy/instagram-bot/internal/config"
 	"github.com/kart-academy/instagram-bot/internal/knowledge"
 	"github.com/kart-academy/instagram-bot/internal/messenger"
+	"github.com/kart-academy/instagram-bot/internal/queue"
 	"github.com/kart-academy/instagram-bot/internal/server"
 	"github.com/kart-academy/instagram-bot/internal/storage"
 	"github.com/kart-academy/instagram-bot/internal/voice"
+	"github.com/kart-academy/instagram-bot/internal/webhook"
 )
 
 func main() {
@@ -56,13 +58,25 @@ func main() {
 	vc := voice.NewElevenLabs(cfg.ElevenLabsAPIKey, cfg.ElevenLabsVoiceID, logger)
 	audioStore := voice.NewAudioStore()
 
+	jobQueue := queue.NewPostgres(db.Conn())
+
+	webhookHandler := webhook.NewHandler(cfg, ig, brain, vc, audioStore, jobQueue, logger)
+
+	pool := queue.NewPool(jobQueue, webhookHandler, queue.Config{
+		Concurrency: cfg.WorkerConcurrency,
+		MaxAttempts: cfg.WorkerMaxAttempts,
+	}, logger)
+	pool.Start(ctx)
+
 	deps := server.Dependencies{
-		Messenger:    ig,
-		AI:           brain,
-		Voice:        vc,
-		AudioStore:   audioStore,
-		Leads:        leadsRepo,
-		Conversation: convRepo,
+		Messenger:      ig,
+		AI:             brain,
+		Voice:          vc,
+		AudioStore:     audioStore,
+		Leads:          leadsRepo,
+		Conversation:   convRepo,
+		Queue:          jobQueue,
+		WebhookHandler: webhookHandler,
 	}
 
 	srv := server.New(cfg, deps, logger)

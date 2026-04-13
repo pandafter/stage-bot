@@ -45,6 +45,10 @@ type Config struct {
 
 	// Admin panel auth token
 	AdminToken string
+
+	// Queue worker pool
+	WorkerConcurrency int
+	WorkerMaxAttempts int
 }
 
 func Load() (*Config, error) {
@@ -67,6 +71,8 @@ func Load() (*Config, error) {
 		DatabaseURL:        getEnv("DATABASE_URL", ""),
 		TestSenderID:       getEnv("TEST_SENDER_ID", ""),
 		AdminToken:         getEnv("ADMIN_TOKEN", ""),
+		WorkerConcurrency:  getIntEnv("WORKER_CONCURRENCY", 5),
+		WorkerMaxAttempts:  getIntEnv("WORKER_MAX_ATTEMPTS", 3),
 	}
 
 	cfg.PublicURL = normalizePublicURL(cfg.PublicURL)

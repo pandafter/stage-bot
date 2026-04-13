@@ -15,6 +15,7 @@ import (
 	"github.com/kart-academy/instagram-bot/internal/admin"
 	"github.com/kart-academy/instagram-bot/internal/config"
 	"github.com/kart-academy/instagram-bot/internal/domain"
+	"github.com/kart-academy/instagram-bot/internal/queue"
 	"github.com/kart-academy/instagram-bot/internal/storage"
 	"github.com/kart-academy/instagram-bot/internal/webhook"
 )
@@ -26,12 +27,14 @@ type Server struct {
 }
 
 type Dependencies struct {
-	Messenger    domain.Messenger
-	AI           domain.AIEngine
-	Voice        domain.VoiceService
-	AudioStore   domain.AudioStore
-	Leads        *storage.LeadsRepo
-	Conversation *storage.ConversationRepo
+	Messenger      domain.Messenger
+	AI             domain.AIEngine
+	Voice          domain.VoiceService
+	AudioStore     domain.AudioStore
+	Leads          *storage.LeadsRepo
+	Conversation   *storage.ConversationRepo
+	Queue          queue.Queue
+	WebhookHandler *webhook.Handler
 }
 
 func New(cfg *config.Config, deps Dependencies, logger *zap.Logger) *Server {
@@ -69,12 +72,15 @@ func (s *Server) setupRoutes(deps Dependencies) {
 		return c.Send(data)
 	})
 
-	wh := webhook.NewHandler(s.cfg, deps.Messenger, deps.AI, deps.Voice, deps.AudioStore, s.logger)
+	wh := deps.WebhookHandler
+	if wh == nil {
+		wh = webhook.NewHandler(s.cfg, deps.Messenger, deps.AI, deps.Voice, deps.AudioStore, deps.Queue, s.logger)
+	}
 	s.app.Get("/webhook", wh.Verify)
 	s.app.Post("/webhook", wh.Receive)
 
 	if deps.Leads != nil && deps.Conversation != nil {
-		ah := admin.NewHandler(s.cfg, deps.Leads, deps.Conversation, deps.Messenger, deps.AI, s.logger)
+		ah := admin.NewHandler(s.cfg, deps.Leads, deps.Conversation, deps.Messenger, deps.AI, deps.Queue, s.logger)
 		adminGroup := s.app.Group("/admin", ah.Auth)
 		adminGroup.Get("/", ah.Dashboard)
 		adminGroup.Get("", ah.Dashboard)
@@ -84,6 +90,8 @@ func (s *Server) setupRoutes(deps Dependencies) {
 		adminGroup.Get("/ping/claude", ah.PingClaude)
 		adminGroup.Get("/ping/elevenlabs", ah.PingElevenLabs)
 		adminGroup.Get("/ping/instagram", ah.PingInstagram)
+		adminGroup.Get("/queue", ah.QueueView)
+		adminGroup.Post("/queue/retry/:id", ah.QueueRetry)
 	}
 }
 

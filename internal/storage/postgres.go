@@ -96,6 +96,22 @@ func (db *DB) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_leads_outcome ON leads(outcome)`,
 		`CREATE INDEX IF NOT EXISTS idx_leads_state ON leads(state)`,
 		`CREATE INDEX IF NOT EXISTS idx_sales_lead ON sales_events(lead_id, created_at)`,
+
+		`CREATE TABLE IF NOT EXISTS message_jobs (
+			id            BIGSERIAL PRIMARY KEY,
+			sender_id     TEXT NOT NULL,
+			payload       JSONB NOT NULL,
+			status        TEXT NOT NULL DEFAULT 'pending',
+			attempts      INTEGER NOT NULL DEFAULT 0,
+			next_retry_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			error_text    TEXT NOT NULL DEFAULT '',
+			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			started_at    TIMESTAMPTZ,
+			finished_at   TIMESTAMPTZ
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_jobs_pending ON message_jobs(next_retry_at) WHERE status = 'pending'`,
+		`CREATE INDEX IF NOT EXISTS idx_jobs_sender_status ON message_jobs(sender_id, status)`,
+		`CREATE INDEX IF NOT EXISTS idx_jobs_status_created ON message_jobs(status, created_at)`,
 	}
 
 	for _, m := range migrations {

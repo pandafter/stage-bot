@@ -64,13 +64,13 @@ type ReplyTo struct {
 
 // Internal message representation
 type IncomingMessage struct {
-	SenderID    string
-	RecipientID string
-	MessageID   string
-	Timestamp   int64
-	Type        MessageType
-	Text        string
-	MediaURL    string
+	SenderID    string      `json:"sender_id"`
+	RecipientID string      `json:"recipient_id"`
+	MessageID   string      `json:"message_id"`
+	Timestamp   int64       `json:"timestamp"`
+	Type        MessageType `json:"type"`
+	Text        string      `json:"text,omitempty"`
+	MediaURL    string      `json:"media_url,omitempty"`
 }
 
 type MessageType string

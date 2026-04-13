@@ -17,6 +17,7 @@ import (
 
 	"github.com/kart-academy/instagram-bot/internal/config"
 	"github.com/kart-academy/instagram-bot/internal/domain"
+	"github.com/kart-academy/instagram-bot/internal/queue"
 	"github.com/kart-academy/instagram-bot/internal/storage"
 )
 
@@ -26,6 +27,7 @@ type Handler struct {
 	conv      *storage.ConversationRepo
 	messenger domain.Messenger
 	ai        domain.AIEngine
+	queue     queue.Queue
 	logger    *zap.Logger
 	httpCli   *http.Client
 }
@@ -36,6 +38,7 @@ func NewHandler(
 	conv *storage.ConversationRepo,
 	messenger domain.Messenger,
 	ai domain.AIEngine,
+	q queue.Queue,
 	logger *zap.Logger,
 ) *Handler {
 	return &Handler{
@@ -44,6 +47,7 @@ func NewHandler(
 		conv:      conv,
 		messenger: messenger,
 		ai:        ai,
+		queue:     q,
 		logger:    logger,
 		httpCli:   &http.Client{Timeout: 15 * time.Second},
 	}
@@ -133,44 +137,73 @@ func (h *Handler) Dashboard(c *fiber.Ctx) error {
 	fmt.Fprintf(&b, `<p><a class="btn" href="/admin/instagram/conversations?token=%s">Ver DMs reales de Meta (últimas 24h)</a></p>`, token)
 	b.WriteString(`<p><small>Lista directa desde Meta Graph API, independiente del bot. Requiere permiso <code>instagram_manage_messages</code>.</small></p>`)
 
+	// Queue stats
+	b.WriteString(`<h2>Cola de mensajes</h2>`)
+	if h.queue != nil {
+		if stats, err := h.queue.Stats(ctx); err == nil {
+			queueBadge := func(label string, n int, cls string) string {
+				return fmt.Sprintf(`<span class="badge %s">%s: %d</span>`, cls, label, n)
+			}
+			warn := ""
+			if stats.OldestPendingSeconds > 60 {
+				warn = fmt.Sprintf(` <span class="bad">(job más viejo: %ds esperando)</span>`, stats.OldestPendingSeconds)
+			}
+			fmt.Fprintf(&b, `<p>%s %s %s %s %s%s</p>`,
+				queueBadge("pending", stats.Pending, "ok"),
+				queueBadge("processing", stats.Processing, "ok"),
+				queueBadge("failed", stats.Failed, "warn-badge"),
+				queueBadge("dead", stats.Dead, "bad-badge"),
+				queueBadge("done 24h", stats.DoneLast24h, "ok"),
+				warn,
+			)
+			fmt.Fprintf(&b, `<p><a class="btn" href="/admin/queue?token=%s">Ver dead-letter</a></p>`, token)
+		} else {
+			fmt.Fprintf(&b, `<p class="bad">Error cargando stats: %s</p>`, html.EscapeString(err.Error()))
+		}
+	} else {
+		b.WriteString(`<p><em>Queue no inicializada.</em></p>`)
+	}
+
 	// Recent leads
 	b.WriteString(`<h2>Últimos leads (24h)</h2>`)
-	leads, lastMsg, err := h.recentLeads(ctx, 50, 24*time.Hour)
+	leads, info, err := h.recentLeads(ctx, 50, 24*time.Hour)
 	if err != nil {
 		fmt.Fprintf(&b, `<p class="bad">Error cargando leads: %s</p>`, html.EscapeString(err.Error()))
 	} else if len(leads) == 0 {
 		b.WriteString(`<p><em>No hay leads con actividad en las últimas 24h.</em></p>`)
 	} else {
-		b.WriteString(`<table class="leads"><tr><th>Lead ID</th><th>Score</th><th>Estado</th><th>Msgs</th><th>Último mensaje</th><th>Cuándo</th><th></th></tr>`)
+		b.WriteString(`<table class="leads"><tr><th>Lead ID</th><th>Score</th><th>Estado</th><th>Msgs</th><th>Último mensaje del usuario</th><th>Cuándo</th><th>Estado resp.</th><th></th></tr>`)
 		for _, l := range leads {
-			last := lastMsg[l.ID]
-			preview := "—"
-			who := ""
+			nfo := info[l.ID]
+			userPreview := "—"
 			when := ""
-			if last != nil {
-				preview = truncate(last.Content, 80)
-				who = string(last.Role)
-				when = relTime(last.CreatedAt)
-			}
+			respStatus := `<span class="ok">respondido</span>`
 			rowClass := ""
-			if last != nil && last.Role == storage.RoleUser {
-				rowClass = ` class="unanswered"`
+			if nfo != nil {
+				if nfo.LastUserMsg != nil {
+					userPreview = truncate(nfo.LastUserMsg.Content, 90)
+					when = relTime(nfo.LastUserMsg.CreatedAt)
+				}
+				if nfo.Unanswered {
+					respStatus = `<span class="bad">SIN RESPUESTA</span>`
+					rowClass = ` class="unanswered"`
+				}
 			}
-			fmt.Fprintf(&b, `<tr%s><td class="mono">%s</td><td>%d</td><td>%s</td><td>%d</td><td>[%s] %s</td><td>%s</td><td><a href="/admin/lead/%s?token=%s">ver</a></td></tr>`,
+			fmt.Fprintf(&b, `<tr%s><td class="mono">%s</td><td>%d</td><td>%s</td><td>%d</td><td>%s</td><td>%s</td><td>%s</td><td><a href="/admin/lead/%s?token=%s">ver</a></td></tr>`,
 				rowClass,
 				html.EscapeString(l.ID),
 				l.LeadScore,
 				html.EscapeString(string(l.State)),
 				l.TotalMessages,
-				html.EscapeString(who),
-				html.EscapeString(preview),
+				html.EscapeString(userPreview),
 				when,
+				respStatus,
 				html.EscapeString(l.ID),
 				token,
 			)
 		}
 		b.WriteString(`</table>`)
-		b.WriteString(`<p><small>Filas resaltadas: último mensaje es del usuario (posiblemente sin respuesta).</small></p>`)
+		b.WriteString(`<p><small>Filas amarillas: el último mensaje fue del usuario y el bot no ha respondido.</small></p>`)
 	}
 
 	b.WriteString(pageFooter())
@@ -483,10 +516,16 @@ func (h *Handler) PingInstagram(c *fiber.Ctx) error {
 	return c.JSON(out)
 }
 
-// recentLeads returns leads with activity in the window, plus their last message.
-func (h *Handler) recentLeads(ctx context.Context, limit int, window time.Duration) ([]*storage.LeadRecord, map[string]*storage.ConversationMessage, error) {
-	// There's no direct "list by last_seen" — use outcome=open ordered by last_seen (already in LeadsRepo).
-	// We fetch open + won + lost to cover all activity, then filter by recent conversation.
+// leadInfo bundles per-lead data needed for the dashboard row.
+type leadInfo struct {
+	LastUserMsg *storage.ConversationMessage
+	LastAnyMsg  *storage.ConversationMessage
+	Unanswered  bool // latest message is from user
+}
+
+// recentLeads returns leads with activity in the window plus their last user message
+// and a flag indicating whether the bot has responded to it.
+func (h *Handler) recentLeads(ctx context.Context, limit int, window time.Duration) ([]*storage.LeadRecord, map[string]*leadInfo, error) {
 	outcomes := []storage.LeadOutcome{storage.OutcomeOpen, storage.OutcomeWon, storage.OutcomeLost, storage.OutcomeAbandoned}
 	var all []*storage.LeadRecord
 	seen := make(map[string]bool)
@@ -503,31 +542,112 @@ func (h *Handler) recentLeads(ctx context.Context, limit int, window time.Durati
 		}
 	}
 
-	lastMsg := make(map[string]*storage.ConversationMessage)
+	info := make(map[string]*leadInfo)
 	cutoff := time.Now().Add(-window)
 
 	var filtered []*storage.LeadRecord
 	for _, l := range all {
-		msgs, err := h.conv.LastN(ctx, l.ID, 1)
+		msgs, err := h.conv.LastN(ctx, l.ID, 10)
 		if err != nil || len(msgs) == 0 {
 			continue
 		}
-		last := msgs[len(msgs)-1]
-		if last.CreatedAt.Before(cutoff) {
+		nfo := &leadInfo{}
+		// msgs is chronological ASC; last is newest.
+		for i := len(msgs) - 1; i >= 0; i-- {
+			if nfo.LastAnyMsg == nil {
+				m := msgs[i]
+				nfo.LastAnyMsg = &m
+			}
+			if msgs[i].Role == storage.RoleUser && nfo.LastUserMsg == nil {
+				m := msgs[i]
+				nfo.LastUserMsg = &m
+				break
+			}
+		}
+		if nfo.LastAnyMsg == nil || nfo.LastAnyMsg.CreatedAt.Before(cutoff) {
 			continue
 		}
-		lastMsg[l.ID] = &last
+		nfo.Unanswered = nfo.LastAnyMsg.Role == storage.RoleUser
+		info[l.ID] = nfo
 		filtered = append(filtered, l)
 	}
 
 	sort.Slice(filtered, func(i, j int) bool {
-		return lastMsg[filtered[i].ID].CreatedAt.After(lastMsg[filtered[j].ID].CreatedAt)
+		return info[filtered[i].ID].LastAnyMsg.CreatedAt.After(info[filtered[j].ID].LastAnyMsg.CreatedAt)
 	})
 
 	if len(filtered) > limit {
 		filtered = filtered[:limit]
 	}
-	return filtered, lastMsg, nil
+	return filtered, info, nil
+}
+
+// QueueView renders the dead-letter list with retry buttons.
+func (h *Handler) QueueView(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(c.Context(), 10*time.Second)
+	defer cancel()
+
+	var b strings.Builder
+	b.WriteString(pageHeader("Cola de mensajes — dead-letter"))
+	fmt.Fprintf(&b, `<p><a href="/admin?token=%s">&larr; volver</a></p>`, h.cfg.AdminToken)
+
+	if h.queue == nil {
+		b.WriteString(`<p class="bad">Queue no inicializada.</p>`)
+		b.WriteString(pageFooter())
+		c.Set("Content-Type", "text/html; charset=utf-8")
+		return c.SendString(b.String())
+	}
+
+	stats, _ := h.queue.Stats(ctx)
+	fmt.Fprintf(&b, `<p><strong>Stats:</strong> pending=%d, processing=%d, failed=%d, dead=%d, done 24h=%d</p>`,
+		stats.Pending, stats.Processing, stats.Failed, stats.Dead, stats.DoneLast24h)
+
+	dead, err := h.queue.DeadLetter(ctx, 50)
+	if err != nil {
+		fmt.Fprintf(&b, `<p class="bad">Error: %s</p>`, html.EscapeString(err.Error()))
+		b.WriteString(pageFooter())
+		c.Set("Content-Type", "text/html; charset=utf-8")
+		return c.SendString(b.String())
+	}
+
+	if len(dead) == 0 {
+		b.WriteString(`<p><em>Sin mensajes en dead-letter.</em></p>`)
+	} else {
+		b.WriteString(`<table class="leads"><tr><th>ID</th><th>Sender</th><th>Attempts</th><th>Error</th><th>Created</th><th></th></tr>`)
+		for _, j := range dead {
+			fmt.Fprintf(&b, `<tr><td>%d</td><td class="mono">%s</td><td>%d</td><td>%s</td><td>%s</td><td>
+				<form method="POST" action="/admin/queue/retry/%d?token=%s" style="display:inline">
+					<button class="btn" type="submit">Reintentar</button>
+				</form></td></tr>`,
+				j.ID, html.EscapeString(j.SenderID), j.Attempts,
+				html.EscapeString(truncate(j.ErrorText, 200)),
+				j.CreatedAt.Format("2006-01-02 15:04"),
+				j.ID, h.cfg.AdminToken)
+		}
+		b.WriteString(`</table>`)
+	}
+
+	b.WriteString(pageFooter())
+	c.Set("Content-Type", "text/html; charset=utf-8")
+	return c.SendString(b.String())
+}
+
+// QueueRetry moves a dead/failed job back to pending.
+func (h *Handler) QueueRetry(c *fiber.Ctx) error {
+	if h.queue == nil {
+		return c.Status(fiber.StatusServiceUnavailable).SendString("Queue no inicializada")
+	}
+	idStr := c.Params("id")
+	var id int64
+	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString("id inválido")
+	}
+	ctx, cancel := context.WithTimeout(c.Context(), 5*time.Second)
+	defer cancel()
+	if err := h.queue.RetryJob(ctx, id); err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
+	}
+	return c.Redirect("/admin/queue?token="+h.cfg.AdminToken, fiber.StatusSeeOther)
 }
 
 func maskToken(s string) string {
@@ -592,6 +712,10 @@ tr.unanswered{background:#fff6d6}
 .bubble.user{background:#fff;border:1px solid #ddd;align-self:flex-start}
 .bubble.bot{background:#dbeafe;align-self:flex-end}
 .bubble .meta{font-size:.72em;color:#666;margin-top:.3em}
+.badge{display:inline-block;padding:.25em .6em;border-radius:12px;font-size:.85em;margin-right:.4em}
+.badge.ok{background:#dcfce7;color:#065f46}
+.badge.warn-badge{background:#fef3c7;color:#92400e}
+.badge.bad-badge{background:#fee2e2;color:#991b1b}
 </style></head><body><h1>` + html.EscapeString(title) + `</h1>`
 }
 
