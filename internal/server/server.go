@@ -92,6 +92,7 @@ func (s *Server) setupRoutes(deps Dependencies) {
 		adminGroup.Get("/ping/instagram", ah.PingInstagram)
 		adminGroup.Get("/queue", ah.QueueView)
 		adminGroup.Post("/queue/retry/:id", ah.QueueRetry)
+		adminGroup.Post("/send", ah.SendToUser)
 	}
 }
 

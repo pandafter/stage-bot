@@ -164,6 +164,29 @@ func (h *Handler) Dashboard(c *fiber.Ctx) error {
 		b.WriteString(`<p><em>Queue no inicializada.</em></p>`)
 	}
 
+	// Manual send to specific sender
+	b.WriteString(`<h2>Atender a un usuario específico</h2>`)
+	fmt.Fprintf(&b, `
+	<form method="POST" action="/admin/send?token=%s" class="manual-send">
+		<label>Sender ID (Instagram-scoped):
+			<input type="text" name="sender_id" placeholder="ej: 7002416586476447" required style="width:280px">
+		</label>
+		<label>Modo:
+			<select name="mode">
+				<option value="ai">AI (Claude genera respuesta basada en historial + instrucción)</option>
+				<option value="literal">Literal (enviar texto exacto sin AI)</option>
+			</select>
+		</label>
+		<label>Instrucción / mensaje (opcional en modo AI):
+			<textarea name="instruction" rows="3" placeholder="Ej AI: 'mándale el link de pago y confirma el horario'. Ej Literal: 'Hola Juan, ya está listo tu cupo, te mando el link?'"></textarea>
+		</label>
+		<button class="btn" type="submit">Enviar mensaje al usuario</button>
+	</form>
+	<p><small>Modo <strong>AI</strong>: tu instrucción guía al bot, que escribe el mensaje siguiendo tono y contexto.<br>
+	Modo <strong>Literal</strong>: el texto va tal cual al usuario, sin pasar por Claude.<br>
+	Sin instrucción + AI: el bot retoma automáticamente la conversación donde quedó.</small></p>`,
+		token)
+
 	// Recent leads
 	b.WriteString(`<h2>Últimos leads (24h)</h2>`)
 	leads, info, err := h.recentLeads(ctx, 50, 24*time.Hour)
@@ -462,29 +485,71 @@ func (h *Handler) RetakeLead(c *fiber.Ctx) error {
 	if leadID == "" {
 		return c.Status(fiber.StatusBadRequest).SendString("lead id requerido")
 	}
+	return h.dispatchSend(c, leadID, "", "ai")
+}
+
+// SendToUser handles the manual send form: sender_id + instruction + mode.
+// Modes:
+//   - "ai" (default): instruction (or synthetic followup if empty) is fed to Brain.Process
+//   - "literal": instruction is sent verbatim as a text message, bypassing Claude
+func (h *Handler) SendToUser(c *fiber.Ctx) error {
+	senderID := strings.TrimSpace(c.FormValue("sender_id"))
+	instruction := strings.TrimSpace(c.FormValue("instruction"))
+	mode := c.FormValue("mode")
+	if mode == "" {
+		mode = "ai"
+	}
+	if senderID == "" {
+		return c.Status(fiber.StatusBadRequest).SendString("sender_id requerido")
+	}
+	return h.dispatchSend(c, senderID, instruction, mode)
+}
+
+// dispatchSend is the shared logic for both retake-by-lead and manual-send-by-id.
+func (h *Handler) dispatchSend(c *fiber.Ctx, senderID, instruction, mode string) error {
 	if h.ai == nil || h.messenger == nil {
 		return c.Status(fiber.StatusServiceUnavailable).SendString("AI o Messenger no configurados")
 	}
 
-	synthetic := "[SISTEMA INTERNO — NO ES MENSAJE DEL CLIENTE] El cliente quedó sin respuesta. Lee el historial completo de la conversación, detecta en qué punto del funnel estaba, y retoma con un mensaje corto, cálido y orientado al siguiente paso. Si la conversación ya estaba cerrada (venta hecha o cliente dijo no definitivo), responde solo con la palabra SKIP."
+	var sent string
+	switch mode {
+	case "literal":
+		if instruction == "" {
+			return c.Status(fiber.StatusBadRequest).SendString("modo literal requiere texto en 'instruction'")
+		}
+		if err := h.messenger.SendText(senderID, instruction); err != nil {
+			return c.Status(fiber.StatusInternalServerError).SendString("Error al enviar: " + err.Error())
+		}
+		sent = instruction
+		h.logger.Info("manual literal sent",
+			zap.String("sender_id", senderID),
+			zap.String("text", truncate(sent, 120)))
 
-	reply, err := h.ai.Process(leadID, synthetic)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).SendString("AI error: " + err.Error())
-	}
-	if strings.TrimSpace(strings.ToUpper(reply)) == "SKIP" {
-		return c.Type("txt").SendString("El AI decidió saltarse este lead (conversación cerrada o terminada).")
+	default: // "ai"
+		input := instruction
+		if input == "" {
+			input = "[SISTEMA INTERNO — NO ES MENSAJE DEL CLIENTE] El cliente quedó sin respuesta. Lee el historial completo de la conversación, detecta en qué punto del funnel estaba, y retoma con un mensaje corto, cálido y orientado al siguiente paso. Si la conversación ya estaba cerrada (venta hecha o cliente dijo no definitivo), responde solo con la palabra SKIP."
+		} else {
+			input = "[INSTRUCCIÓN INTERNA DEL EQUIPO — NO ES MENSAJE DEL CLIENTE] " + input + ". Genera el mensaje correspondiente al cliente con base en el historial y el tono del bot. Si consideras que no aplica, responde solo SKIP."
+		}
+		reply, err := h.ai.Process(senderID, input)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).SendString("AI error: " + err.Error())
+		}
+		if strings.TrimSpace(strings.ToUpper(reply)) == "SKIP" {
+			return c.Type("txt").SendString("El AI decidió saltarse: " + senderID + " (no aplica enviar mensaje)")
+		}
+		if err := h.messenger.SendText(senderID, reply); err != nil {
+			return c.Status(fiber.StatusInternalServerError).SendString("Error al enviar: " + err.Error())
+		}
+		sent = reply
+		h.logger.Info("manual ai-send sent",
+			zap.String("sender_id", senderID),
+			zap.String("instruction", truncate(instruction, 120)),
+			zap.String("reply", truncate(reply, 120)))
 	}
 
-	if err := h.messenger.SendText(leadID, reply); err != nil {
-		return c.Status(fiber.StatusInternalServerError).SendString("Error al enviar: " + err.Error())
-	}
-
-	h.logger.Info("retake sent",
-		zap.String("lead_id", leadID),
-		zap.String("reply", truncate(reply, 120)),
-	)
-	return c.Type("txt").SendString("OK — mensaje enviado a " + leadID + ":\n\n" + reply)
+	return c.Type("txt").SendString("OK — enviado a " + senderID + ":\n\n" + sent)
 }
 
 // PingInstagram tests reachability of Instagram Graph API using the page token.
@@ -716,6 +781,11 @@ tr.unanswered{background:#fff6d6}
 .badge.ok{background:#dcfce7;color:#065f46}
 .badge.warn-badge{background:#fef3c7;color:#92400e}
 .badge.bad-badge{background:#fee2e2;color:#991b1b}
+form.manual-send{background:#fff;padding:1em;border:1px solid #ddd;border-radius:6px;max-width:700px}
+form.manual-send label{display:block;margin:.6em 0;font-size:.9em;color:#444;font-weight:600}
+form.manual-send input,form.manual-send select,form.manual-send textarea{display:block;width:100%;padding:.5em;border:1px solid #ccc;border-radius:4px;font-size:.95em;margin-top:.25em;font-family:inherit;box-sizing:border-box}
+form.manual-send textarea{resize:vertical}
+form.manual-send button{margin-top:.5em}
 </style></head><body><h1>` + html.EscapeString(title) + `</h1>`
 }
 
