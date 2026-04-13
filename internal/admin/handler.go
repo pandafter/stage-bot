@@ -527,17 +527,23 @@ func (h *Handler) dispatchSend(c *fiber.Ctx, senderID, instruction, mode string)
 
 	default: // "ai"
 		input := instruction
+		allowSkip := false
 		if input == "" {
+			// Auto follow-up: AI decides if it makes sense to send anything.
 			input = "[SISTEMA INTERNO — NO ES MENSAJE DEL CLIENTE] El cliente quedó sin respuesta. Lee el historial completo de la conversación, detecta en qué punto del funnel estaba, y retoma con un mensaje corto, cálido y orientado al siguiente paso. Si la conversación ya estaba cerrada (venta hecha o cliente dijo no definitivo), responde solo con la palabra SKIP."
+			allowSkip = true
 		} else {
-			input = "[INSTRUCCIÓN INTERNA DEL EQUIPO — NO ES MENSAJE DEL CLIENTE] " + input + ". Genera el mensaje correspondiente al cliente con base en el historial y el tono del bot. Si consideras que no aplica, responde solo SKIP."
+			// Explicit operator instruction: always produce a message.
+			input = "[INSTRUCCIÓN INTERNA DEL EQUIPO — NO ES MENSAJE DEL CLIENTE, NO LA REPITAS TAL CUAL] " +
+				instruction +
+				". Redacta el mensaje al cliente siguiendo el tono natural del bot y el historial si existe. Si el cliente es nuevo y no hay historial, saluda y arranca la conversación de forma cálida y corta. NO respondas SKIP: el equipo ya decidió enviar algo, tu trabajo es redactar el mejor mensaje posible."
 		}
 		reply, err := h.ai.Process(senderID, input)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).SendString("AI error: " + err.Error())
 		}
-		if strings.TrimSpace(strings.ToUpper(reply)) == "SKIP" {
-			return c.Type("txt").SendString("El AI decidió saltarse: " + senderID + " (no aplica enviar mensaje)")
+		if allowSkip && strings.TrimSpace(strings.ToUpper(reply)) == "SKIP" {
+			return utf8Text(c, "El AI decidió saltarse: "+senderID+" (no aplica enviar mensaje)")
 		}
 		if err := h.messenger.SendText(senderID, reply); err != nil {
 			return c.Status(fiber.StatusInternalServerError).SendString("Error al enviar: " + err.Error())
@@ -549,7 +555,12 @@ func (h *Handler) dispatchSend(c *fiber.Ctx, senderID, instruction, mode string)
 			zap.String("reply", truncate(reply, 120)))
 	}
 
-	return c.Type("txt").SendString("OK — enviado a " + senderID + ":\n\n" + sent)
+	return utf8Text(c, "OK — enviado a "+senderID+":\n\n"+sent)
+}
+
+func utf8Text(c *fiber.Ctx, body string) error {
+	c.Set("Content-Type", "text/plain; charset=utf-8")
+	return c.SendString(body)
 }
 
 // PingInstagram tests reachability of Instagram Graph API using the page token.
