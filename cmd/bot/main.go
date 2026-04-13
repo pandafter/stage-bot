@@ -57,10 +57,12 @@ func main() {
 	audioStore := voice.NewAudioStore()
 
 	deps := server.Dependencies{
-		Messenger:  ig,
-		AI:         brain,
-		Voice:      vc,
-		AudioStore: audioStore,
+		Messenger:    ig,
+		AI:           brain,
+		Voice:        vc,
+		AudioStore:   audioStore,
+		Leads:        leadsRepo,
+		Conversation: convRepo,
 	}
 
 	srv := server.New(cfg, deps, logger)

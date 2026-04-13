@@ -42,6 +42,9 @@ type Config struct {
 
 	// Testing — only respond to this sender in development
 	TestSenderID string
+
+	// Admin panel auth token
+	AdminToken string
 }
 
 func Load() (*Config, error) {
@@ -63,6 +66,7 @@ func Load() (*Config, error) {
 		PublicURL:           getEnv("PUBLIC_URL", ""),
 		DatabaseURL:        getEnv("DATABASE_URL", ""),
 		TestSenderID:       getEnv("TEST_SENDER_ID", ""),
+		AdminToken:         getEnv("ADMIN_TOKEN", ""),
 	}
 
 	cfg.PublicURL = normalizePublicURL(cfg.PublicURL)
