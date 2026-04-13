@@ -168,9 +168,10 @@ func (h *Handler) Dashboard(c *fiber.Ctx) error {
 	b.WriteString(`<h2>Atender a un usuario específico</h2>`)
 	fmt.Fprintf(&b, `
 	<form method="POST" action="/admin/send?token=%s" class="manual-send">
-		<label>Sender ID (Instagram-scoped):
-			<input type="text" name="sender_id" placeholder="ej: 7002416586476447" required style="width:280px">
+		<label>Sender ID o @username:
+			<input type="text" name="sender_id" placeholder="ej: 7002416586476447 o @juanperez" required style="width:320px">
 		</label>
+		<p style="font-size:.78em;color:#666;margin:-.3em 0 .5em">Puedes pegar el ID numérico o un <code>@username</code>. El @username solo funciona si esa persona ya te ha escrito antes (limitación de Meta).</p>
 		<label>Modo:
 			<select name="mode">
 				<option value="ai">AI (Claude genera respuesta basada en historial + instrucción)</option>
@@ -488,21 +489,111 @@ func (h *Handler) RetakeLead(c *fiber.Ctx) error {
 	return h.dispatchSend(c, leadID, "", "ai")
 }
 
-// SendToUser handles the manual send form: sender_id + instruction + mode.
+// SendToUser handles the manual send form: sender_id (or @username) + instruction + mode.
 // Modes:
 //   - "ai" (default): instruction (or synthetic followup if empty) is fed to Brain.Process
 //   - "literal": instruction is sent verbatim as a text message, bypassing Claude
 func (h *Handler) SendToUser(c *fiber.Ctx) error {
-	senderID := strings.TrimSpace(c.FormValue("sender_id"))
+	rawSender := strings.TrimSpace(c.FormValue("sender_id"))
 	instruction := strings.TrimSpace(c.FormValue("instruction"))
 	mode := c.FormValue("mode")
 	if mode == "" {
 		mode = "ai"
 	}
-	if senderID == "" {
+	if rawSender == "" {
 		return c.Status(fiber.StatusBadRequest).SendString("sender_id requerido")
 	}
+
+	senderID, resolvedUsername, err := h.resolveSender(c.Context(), rawSender)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString(err.Error())
+	}
+	if resolvedUsername != "" {
+		h.logger.Info("resolved @username to sender ID",
+			zap.String("username", resolvedUsername),
+			zap.String("sender_id", senderID))
+	}
+
 	return h.dispatchSend(c, senderID, instruction, mode)
+}
+
+// resolveSender accepts either a numeric IGSID or an @username and returns the IGSID.
+// Resolving @username requires instagram_manage_messages permission and only works
+// for users who have previously messaged the business account.
+func (h *Handler) resolveSender(ctx context.Context, input string) (senderID, username string, err error) {
+	input = strings.TrimSpace(input)
+	input = strings.TrimPrefix(input, "@")
+
+	if isAllDigits(input) {
+		return input, "", nil
+	}
+
+	if h.cfg.PageAccessToken == "" {
+		return "", "", fmt.Errorf("para resolver @%s necesitas PAGE_ACCESS_TOKEN", input)
+	}
+
+	q := url.Values{}
+	q.Set("platform", "instagram")
+	q.Set("fields", "participants")
+	q.Set("access_token", h.cfg.PageAccessToken)
+	q.Set("limit", "200")
+	apiURL := "https://graph.instagram.com/v21.0/me/conversations?" + q.Encode()
+
+	lookupCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(lookupCtx, "GET", apiURL, nil)
+	resp, err := h.httpCli.Do(req)
+	if err != nil {
+		return "", "", fmt.Errorf("error llamando a Meta: %w", err)
+	}
+	defer resp.Body.Close()
+	buf := new(bytes.Buffer)
+	_, _ = buf.ReadFrom(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("Meta devolvió %d al buscar @%s — verifica permiso instagram_manage_messages. Body: %s",
+			resp.StatusCode, input, truncate(buf.String(), 300))
+	}
+
+	var parsed struct {
+		Data []struct {
+			Participants struct {
+				Data []struct {
+					ID       string `json:"id"`
+					Username string `json:"username"`
+				} `json:"data"`
+			} `json:"participants"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &parsed); err != nil {
+		return "", "", fmt.Errorf("error parseando respuesta de Meta: %w", err)
+	}
+
+	lowered := strings.ToLower(input)
+	for _, conv := range parsed.Data {
+		for _, p := range conv.Participants.Data {
+			if p.ID == h.cfg.InstagramAccountID {
+				continue
+			}
+			if strings.EqualFold(p.Username, lowered) {
+				return p.ID, p.Username, nil
+			}
+		}
+	}
+
+	return "", "", fmt.Errorf("no encontré @%s entre usuarios que te han escrito. Solo puedo resolver usernames de gente que ya tuvo conversación contigo. Si nunca te ha escrito, Meta no expone su ID y tendrías que esperar a que escriba primero", input)
+}
+
+func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // dispatchSend is the shared logic for both retake-by-lead and manual-send-by-id.
