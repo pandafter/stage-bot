@@ -86,6 +86,7 @@ func (s *Server) setupRoutes(deps Dependencies) {
 		adminGroup.Get("", ah.Dashboard)
 		adminGroup.Get("/lead/:id", ah.LeadDetail)
 		adminGroup.Post("/lead/:id/retake", ah.RetakeLead)
+		adminGroup.Post("/lead/:id/outcome", ah.SetOutcome)
 		adminGroup.Get("/instagram/conversations", ah.InstagramConversations)
 		adminGroup.Get("/ping/claude", ah.PingClaude)
 		adminGroup.Get("/ping/elevenlabs", ah.PingElevenLabs)

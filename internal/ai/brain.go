@@ -61,6 +61,13 @@ func (b *Brain) Process(senderID, text string) (string, error) {
 		return b.fallback(text), nil
 	}
 
+	// If the lead was followed up and now responded, reset the counter
+	if rec.FollowupCount > 0 {
+		if err := b.leads.ResetFollowup(ctx, senderID); err != nil {
+			b.logger.Warn("reset followup failed", zap.Error(err))
+		}
+	}
+
 	intent := DetectIntent(text)
 	scoreDelta := ApplyIntent(rec, intent)
 	strategy := SelectStrategy(intent, rec)

@@ -228,3 +228,61 @@ func (r *LeadsRepo) MarkFollowup(ctx context.Context, leadID string) error {
 	}
 	return nil
 }
+
+// ResetFollowup clears the follow-up counter when a lead responds.
+// Called from the brain pipeline when a user message arrives.
+func (r *LeadsRepo) ResetFollowup(ctx context.Context, leadID string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE leads SET followup_count = 0, last_followup = NULL WHERE id = $1 AND followup_count > 0`,
+		leadID)
+	if err != nil {
+		return fmt.Errorf("reset followup: %w", err)
+	}
+	return nil
+}
+
+// AutoAbandon marks leads as abandoned if they've been open and idle for too long.
+// Returns the number of leads marked.
+func (r *LeadsRepo) AutoAbandon(ctx context.Context, idleThreshold time.Duration) (int, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE leads SET outcome = 'abandoned'
+		WHERE outcome = 'open'
+		  AND total_messages >= 2
+		  AND last_seen < NOW() - $1::interval
+		  AND followup_count >= 3`,
+		fmt.Sprintf("%d seconds", int(idleThreshold.Seconds())),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("auto abandon: %w", err)
+	}
+	n, _ := result.RowsAffected()
+	return int(n), nil
+}
+
+// FollowUpStats returns metrics about follow-up effectiveness.
+type FollowUpStats struct {
+	TotalSent      int     // total follow-up messages sent (across all leads)
+	LeadsContacted int     // leads that received at least one follow-up
+	LeadsResponded int     // leads that responded after a follow-up
+	ResponseRate   float64 // LeadsResponded / LeadsContacted
+}
+
+// GetFollowUpStats aggregates follow-up performance.
+func (r *LeadsRepo) GetFollowUpStats(ctx context.Context) (FollowUpStats, error) {
+	var s FollowUpStats
+	row := r.db.QueryRowContext(ctx, `
+		SELECT
+			COALESCE(SUM(followup_count), 0),
+			COUNT(*) FILTER (WHERE followup_count > 0),
+			COUNT(*) FILTER (WHERE followup_count > 0 AND last_seen > last_followup)
+		FROM leads
+		WHERE outcome = 'open' OR outcome = 'won' OR outcome = 'lost' OR outcome = 'abandoned'
+	`)
+	if err := row.Scan(&s.TotalSent, &s.LeadsContacted, &s.LeadsResponded); err != nil {
+		return s, fmt.Errorf("followup stats: %w", err)
+	}
+	if s.LeadsContacted > 0 {
+		s.ResponseRate = float64(s.LeadsResponded) / float64(s.LeadsContacted) * 100
+	}
+	return s, nil
+}

@@ -130,6 +130,26 @@ func (h *Handler) Dashboard(c *fiber.Ctx) error {
 	}
 	b.WriteString(`</div></div>`)
 
+	// Follow-up & retention
+	b.WriteString(`<div class="kpi-group"><h3>🔄 Retención y Follow-up</h3><div class="cards">`)
+	if lerr == nil {
+		b.WriteString(kpiCard("Abandonados", fmt.Sprintf("%d", leadsStats.Abandoned), "dejaron de responder", "accent-orange"))
+
+		abandonRate := 0.0
+		if leadsStats.Total > 0 {
+			abandonRate = float64(leadsStats.Abandoned) / float64(leadsStats.Total) * 100
+		}
+		b.WriteString(kpiCard("Tasa abandono", fmt.Sprintf("%.0f%%", abandonRate),
+			fmt.Sprintf("%d de %d leads", leadsStats.Abandoned, leadsStats.Total), "accent-red"))
+	}
+	if fuStats, ferr := h.leads.GetFollowUpStats(ctx); ferr == nil {
+		b.WriteString(kpiCard("Follow-ups enviados", fmt.Sprintf("%d", fuStats.TotalSent),
+			fmt.Sprintf("a %d leads", fuStats.LeadsContacted), "accent-blue"))
+		b.WriteString(kpiCard("Respondieron", fmt.Sprintf("%d", fuStats.LeadsResponded),
+			fmt.Sprintf("%.0f%% tasa de respuesta", fuStats.ResponseRate), "accent-green"))
+	}
+	b.WriteString(`</div></div>`)
+
 	// Costs
 	b.WriteString(`<div class="kpi-group"><h3>💰 Costos (Claude)</h3><div class="cards">`)
 	if uerr == nil {
@@ -345,25 +365,66 @@ func (h *Handler) LeadDetail(c *fiber.Ctx) error {
 	b.WriteString(pageHeader("Lead " + leadID))
 	fmt.Fprintf(&b, `<p><a href="/admin?token=%s">&larr; volver</a></p>`, h.cfg.AdminToken)
 	fmt.Fprintf(&b, `<h2>Lead <span class="mono">%s</span></h2>`, html.EscapeString(leadID))
+	lastFollowup := "nunca"
+	if lead.LastFollowup != nil {
+		lastFollowup = lead.LastFollowup.Format("2006-01-02 15:04") + " (" + relTime(*lead.LastFollowup) + ")"
+	}
+	outcomeLabel := string(lead.Outcome)
+	outcomeStyle := ""
+	switch lead.Outcome {
+	case storage.OutcomeWon:
+		outcomeStyle = `style="color:var(--green-ink);font-weight:bold"`
+	case storage.OutcomeLost:
+		outcomeStyle = `style="color:var(--red-ink);font-weight:bold"`
+	case storage.OutcomeAbandoned:
+		outcomeStyle = `style="color:var(--orange-ink);font-weight:bold"`
+	}
 	fmt.Fprintf(&b, `<table class="kv">
 		<tr><td>Username</td><td>%s</td></tr>
 		<tr><td>Score</td><td>%d</td></tr>
 		<tr><td>Estado</td><td>%s</td></tr>
-		<tr><td>Outcome</td><td>%s</td></tr>
+		<tr><td>Outcome</td><td %s>%s</td></tr>
 		<tr><td>Mensajes totales</td><td>%d</td></tr>
 		<tr><td>Precio preguntado</td><td>%v</td></tr>
 		<tr><td>Horario preguntado</td><td>%v</td></tr>
 		<tr><td>Señal de compra</td><td>%v</td></tr>
 		<tr><td>Objeciones</td><td>%d</td></tr>
+		<tr><td>Follow-ups enviados</td><td>%d</td></tr>
+		<tr><td>Último follow-up</td><td>%s</td></tr>
 	</table>`,
-		html.EscapeString(lead.Username), lead.LeadScore, string(lead.State), string(lead.Outcome),
-		lead.TotalMessages, lead.PriceAsked, lead.ScheduleAsked, lead.BuySignal, lead.Objections)
+		html.EscapeString(lead.Username), lead.LeadScore, string(lead.State),
+		outcomeStyle, html.EscapeString(outcomeLabel),
+		lead.TotalMessages, lead.PriceAsked, lead.ScheduleAsked, lead.BuySignal, lead.Objections,
+		lead.FollowupCount, lastFollowup)
 
 	fmt.Fprintf(&b, `<h2>Acciones</h2>
 	<form method="POST" action="/admin/lead/%s/retake?token=%s" style="display:inline">
 		<button class="btn" type="submit">Retomar conversación ahora (bot responde)</button>
 	</form>
 	<p><small>Hace que el bot lea el historial y mande un mensaje para empujar al cierre. Si el AI considera que ya no aplica, devuelve SKIP.</small></p>`,
+		html.EscapeString(leadID), h.cfg.AdminToken)
+
+	// Outcome buttons
+	fmt.Fprintf(&b, `<h3>Marcar resultado</h3>
+	<div style="display:flex;gap:.5em;flex-wrap:wrap">
+		<form method="POST" action="/admin/lead/%[1]s/outcome?token=%[2]s" style="display:inline">
+			<input type="hidden" name="outcome" value="won">
+			<button class="btn" type="submit" style="background:var(--green)">Venta cerrada (won)</button>
+		</form>
+		<form method="POST" action="/admin/lead/%[1]s/outcome?token=%[2]s" style="display:inline">
+			<input type="hidden" name="outcome" value="lost">
+			<button class="btn" type="submit" style="background:var(--red)">No compró (lost)</button>
+		</form>
+		<form method="POST" action="/admin/lead/%[1]s/outcome?token=%[2]s" style="display:inline">
+			<input type="hidden" name="outcome" value="abandoned">
+			<button class="btn" type="submit" style="background:var(--orange)">Abandonado</button>
+		</form>
+		<form method="POST" action="/admin/lead/%[1]s/outcome?token=%[2]s" style="display:inline">
+			<input type="hidden" name="outcome" value="open">
+			<button class="btn" type="submit" style="background:var(--blue)">Reabrir (open)</button>
+		</form>
+	</div>
+	<p><small>Marcar como <strong>won/lost</strong> alimenta el aprendizaje del bot (playbook). El bot analiza las conversaciones ganadas para imitar patrones y las perdidas para evitarlos.</small></p>`,
 		html.EscapeString(leadID), h.cfg.AdminToken)
 
 	b.WriteString(`<h2>Conversación completa</h2>`)
@@ -392,6 +453,39 @@ func (h *Handler) LeadDetail(c *fiber.Ctx) error {
 	b.WriteString(pageFooter())
 	c.Set("Content-Type", "text/html; charset=utf-8")
 	return c.SendString(b.String())
+}
+
+// SetOutcome marks a lead as won/lost/abandoned/open from the admin panel.
+func (h *Handler) SetOutcome(c *fiber.Ctx) error {
+	leadID := c.Params("id")
+	outcome := c.FormValue("outcome")
+	if leadID == "" || outcome == "" {
+		return c.Status(fiber.StatusBadRequest).SendString("lead id y outcome requeridos")
+	}
+
+	validOutcomes := map[string]storage.LeadOutcome{
+		"won":       storage.OutcomeWon,
+		"lost":      storage.OutcomeLost,
+		"abandoned": storage.OutcomeAbandoned,
+		"open":      storage.OutcomeOpen,
+	}
+	o, ok := validOutcomes[outcome]
+	if !ok {
+		return c.Status(fiber.StatusBadRequest).SendString("outcome inválido: " + outcome)
+	}
+
+	ctx, cancel := context.WithTimeout(c.Context(), 5*time.Second)
+	defer cancel()
+
+	if err := h.leads.SetOutcome(ctx, leadID, o, "set from admin panel"); err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("error: " + err.Error())
+	}
+
+	h.logger.Info("outcome set from admin",
+		zap.String("lead", leadID),
+		zap.String("outcome", outcome))
+
+	return c.Redirect(fmt.Sprintf("/admin/lead/%s?token=%s", leadID, h.cfg.AdminToken), fiber.StatusSeeOther)
 }
 
 // PingClaude tests a minimal call to the Claude API.

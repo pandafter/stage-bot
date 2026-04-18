@@ -88,6 +88,13 @@ func (f *FollowUp) runCycle(ctx context.Context) {
 	dbCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
+	// Auto-mark leads as abandoned if they got all 3 follow-ups and still didn't respond after 14 days
+	if n, err := f.leads.AutoAbandon(dbCtx, 14*24*time.Hour); err != nil {
+		f.logger.Warn("followup: auto-abandon failed", zap.Error(err))
+	} else if n > 0 {
+		f.logger.Info("followup: auto-abandoned stale leads", zap.Int("count", n))
+	}
+
 	stale, err := f.leads.StaleLeads(dbCtx, followupStaleAfter, followupMaxAge, followupCooldown, followupMaxAttempts, followupBatchSize)
 	if err != nil {
 		f.logger.Warn("followup: failed to fetch stale leads", zap.Error(err))
