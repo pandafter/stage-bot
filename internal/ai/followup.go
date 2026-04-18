@@ -14,19 +14,23 @@ import (
 
 const (
 	// How often the follow-up loop checks for stale leads.
-	followupCheckInterval = 30 * time.Minute
+	followupCheckInterval = 15 * time.Minute
 
 	// A lead is "stale" if they haven't messaged in this long.
-	followupStaleAfter = 24 * time.Hour
+	// Instagram only allows messaging within 24h of the user's last message,
+	// so we target leads that went quiet recently but are still inside the window.
+	followupStaleAfter = 6 * time.Hour
 
-	// Stop trying after this long — don't chase forever.
-	followupMaxAge = 7 * 24 * time.Hour
+	// Stop trying after this long — Instagram's 24h window means anything
+	// beyond that will get rejected by Meta's API.
+	followupMaxAge = 23 * time.Hour
 
-	// Minimum gap between follow-ups to the same person.
-	followupCooldown = 48 * time.Hour
+	// Minimum gap between follow-ups to the same person (within the 24h window).
+	followupCooldown = 4 * time.Hour
 
-	// Max follow-up attempts per lead. After this, leave them alone.
-	followupMaxAttempts = 3
+	// Max follow-up attempts per lead within one 24h window.
+	// With a 4h cooldown and 23h max age, realistically 1-2 will fit.
+	followupMaxAttempts = 2
 
 	// Max leads to process per cycle (don't blast everyone at once).
 	followupBatchSize = 5
@@ -88,8 +92,8 @@ func (f *FollowUp) runCycle(ctx context.Context) {
 	dbCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
-	// Auto-mark leads as abandoned if they got all 3 follow-ups and still didn't respond after 14 days
-	if n, err := f.leads.AutoAbandon(dbCtx, 14*24*time.Hour); err != nil {
+	// Auto-mark leads as abandoned if they got all follow-ups and still didn't respond after 7 days
+	if n, err := f.leads.AutoAbandon(dbCtx, 7*24*time.Hour); err != nil {
 		f.logger.Warn("followup: auto-abandon failed", zap.Error(err))
 	} else if n > 0 {
 		f.logger.Info("followup: auto-abandoned stale leads", zap.Int("count", n))
@@ -165,6 +169,18 @@ func (f *FollowUp) sendFollowUp(ctx context.Context, lead *storage.LeadRecord) e
 	time.Sleep(2 * time.Second)
 
 	if err := f.messenger.SendText(lead.ID, text); err != nil {
+		// If Instagram rejected it because the 24h window closed,
+		// mark max follow-ups so we stop trying this lead.
+		if strings.Contains(err.Error(), "outside of allowed window") ||
+			strings.Contains(err.Error(), "allowed window") {
+			f.logger.Warn("followup: 24h window closed, stopping attempts for this lead",
+				zap.String("lead", lead.ID))
+			// Set followup_count to max so StaleLeads won't pick it up again
+			for i := lead.FollowupCount; i < followupMaxAttempts; i++ {
+				_ = f.leads.MarkFollowup(dbCtx, lead.ID)
+			}
+			return nil // not an error, just a window miss
+		}
 		return fmt.Errorf("send: %w", err)
 	}
 
@@ -242,20 +258,12 @@ TIPO: primer follow-up. Casual y corto.
 - Agrega un dato nuevo si puedes (una fecha próxima, algo que pasó en la pista)
 - Máximo 2 oraciones. Como un mensaje rápido, no una carta`)
 
-	case 1:
-		b.WriteString(`
-TIPO: segundo follow-up. Ángulo distinto.
-- No repitas lo del primer follow-up. Cambia de tema o de enfoque
-- Puedes contar algo de la academia, algo que pasó con un alumno, una fecha que se llena
-- Cero presión. Si suena a que estás insistiendo, está mal
-- Máximo 2 oraciones`)
-
 	default:
 		b.WriteString(`
-TIPO: último follow-up. Mensaje de cierre.
-- Dale la salida. Si no le interesa, no pasa nada
-- Breve y honesto. Que sienta que respetas su decisión
-- Este tipo de mensaje suele generar respuesta porque quita la presión
+TIPO: segundo y último follow-up. Cierre suave.
+- Cambia de ángulo respecto al primer follow-up
+- Puedes mencionar algo nuevo (fecha, cupos) pero sin insistir
+- Dale la salida si no le interesa. Que sienta que respetas su tiempo
 - Máximo 2 oraciones`)
 	}
 

@@ -249,7 +249,7 @@ func (r *LeadsRepo) AutoAbandon(ctx context.Context, idleThreshold time.Duration
 		WHERE outcome = 'open'
 		  AND total_messages >= 2
 		  AND last_seen < NOW() - $1::interval
-		  AND followup_count >= 3`,
+		  AND followup_count >= 2`,
 		fmt.Sprintf("%d seconds", int(idleThreshold.Seconds())),
 	)
 	if err != nil {
