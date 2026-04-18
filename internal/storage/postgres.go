@@ -116,6 +116,11 @@ func (db *DB) migrate() error {
 		`ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS tokens_in INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS tokens_out INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS model TEXT NOT NULL DEFAULT ''`,
+
+		// Follow-up tracking
+		`ALTER TABLE leads ADD COLUMN IF NOT EXISTS followup_count INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE leads ADD COLUMN IF NOT EXISTS last_followup TIMESTAMPTZ`,
+		`CREATE INDEX IF NOT EXISTS idx_leads_followup ON leads(last_seen, state) WHERE outcome = 'open'`,
 	}
 
 	for _, m := range migrations {

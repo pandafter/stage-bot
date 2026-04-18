@@ -64,6 +64,9 @@ func main() {
 	vc := voice.NewElevenLabs(cfg.ElevenLabsAPIKey, cfg.ElevenLabsVoiceID, logger)
 	audioStore := voice.NewAudioStore()
 
+	followup := ai.NewFollowUp(brain, ig, leadsRepo, convRepo, logger)
+	followup.Start(ctx)
+
 	jobQueue := queue.NewPostgres(db.Conn())
 
 	webhookHandler := webhook.NewHandler(cfg, ig, brain, vc, audioStore, jobQueue, logger)

@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -196,38 +197,74 @@ func (b *Brain) fallback(text string) string {
 }
 
 // fallbackReply returns a keyword-based response when Claude API is unavailable.
+// Uses random selection so it doesn't sound like the same robot every time.
 func fallbackReply(text string) string {
 	lower := strings.ToLower(text)
 
 	switch {
 	case containsAny(lower, "hola", "hey", "buenas", "buenos", "hi", "hello", "qué tal", "que tal"):
-		return "¡Ey, qué más! Bienvenido 🏁 ¿Qué te gustaría saber sobre nuestros cursos?"
+		return pick(
+			"hola! cómo estás? en qué andas interesado?",
+			"hola, cómo vas? te puedo ayudar con algo?",
+			"hola! qué te trae por acá?",
+		)
 
 	case containsAny(lower, "precio", "costo", "cuánto", "cuanto", "vale", "valor", "tarifa"):
-		return "Claro, déjame confirmo disponibilidad y te paso los precios. ¿Para quién sería el curso?"
+		return pick(
+			"claro, deja confirmo disponibilidad y te paso precios. sería para ti o para alguien más?",
+			"ya te averiguo eso. es para adulto o para un niño?",
+			"sí, te cuento los precios. para qué nivel sería?",
+		)
 
 	case containsAny(lower, "curso", "clases", "clase", "programa", "aprender", "enseñan"):
-		return "Tenemos cursos para todos los niveles 🏎️ ¿Ya has manejado kart antes o arrancarías desde cero?"
+		return pick(
+			"tenemos para todos los niveles. ya has manejado kart antes?",
+			"sí, hay varios cursos dependiendo del nivel. has tenido experiencia con karts o sería la primera vez?",
+			"claro! tienes algo de experiencia o arrancarías desde cero?",
+		)
 
 	case containsAny(lower, "horario", "cuando", "cuándo", "disponibilidad", "hora"):
-		return "Manejamos horarios entre semana y fines de semana. ¿Qué días te quedan mejor?"
+		return pick(
+			"hay entre semana y fines de semana. qué días te quedan mejor?",
+			"manejamos varios horarios. te queda mejor entre semana o fin de semana?",
+		)
 
 	case containsAny(lower, "edad", "años", "niño", "niños", "hijo", "hija", "pequeño"):
-		return "Desde los 8 años, los peques arrancan con karts adaptados y supervisor directo. ¿Cuántos años tiene?"
+		return pick(
+			"desde los 8 años pueden arrancar, con karts adaptados y un supervisor al lado. cuántos años tiene?",
+			"sí, tenemos para niños desde los 8 años con equipo adaptado. cuántos años tiene el tuyo?",
+		)
 
 	case containsAny(lower, "ubicación", "ubicacion", "dónde", "donde", "dirección", "direccion", "llegar", "queda"):
-		return "Estamos en Tocancipá. ¿Quieres que te pase la ubicación exacta?"
+		return pick(
+			"estamos en Tocancipá. te paso la ubicación?",
+			"queda en Tocancipá, te mando la ubi?",
+		)
 
 	case containsAny(lower, "gracias", "thank", "genial", "perfecto", "dale", "listo"):
-		return "¡De una! Cualquier otra duda me escribes 🙌"
+		return pick(
+			"listo! cualquier cosa me escribes",
+			"dale, acá estamos para lo que necesites",
+			"con gusto, me dices si te surge algo más",
+		)
 
 	case containsAny(lower, "seguro", "seguridad", "peligro", "riesgo"):
-		return "Tranqui, la seguridad es lo primero. Equipo completo, karts con seguridad y instructores certificados. ¿Alguna otra duda?"
+		return "la seguridad es lo primero. tienen equipo completo, karts con todas las medidas y los instructores están certificados"
 
 	case containsAny(lower, "inscri", "registr", "empezar", "inicio", "comenzar"):
-		return "¡Dale que es! 🏎️ ¿Me dices tu nombre y para qué nivel te interesa?"
+		return pick(
+			"listo! me pasas tu nombre y me dices para qué nivel?",
+			"dale! cómo te llamas y qué nivel te interesa?",
+		)
 
 	default:
-		return "¡Hola! Cuéntame, ¿qué te gustaría saber sobre nuestros cursos de karting?"
+		return pick(
+			"hola! en qué te puedo ayudar?",
+			"hola, cómo estás? cuéntame qué necesitas",
+		)
 	}
+}
+
+func pick(options ...string) string {
+	return options[rand.Intn(len(options))]
 }

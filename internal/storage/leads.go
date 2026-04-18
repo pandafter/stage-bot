@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/kart-academy/instagram-bot/internal/domain"
 )
@@ -29,6 +30,8 @@ type LeadRecord struct {
 	ScheduleAsked bool
 	BuySignal     bool
 	Objections    int
+	FollowupCount int
+	LastFollowup  *time.Time
 }
 
 type LeadsRepo struct {
@@ -52,13 +55,15 @@ func (r *LeadsRepo) Ensure(ctx context.Context, leadID string) (*LeadRecord, err
 func (r *LeadsRepo) Get(ctx context.Context, leadID string) (*LeadRecord, error) {
 	row := r.db.QueryRowContext(ctx,
 		`SELECT id, username, total_messages, lead_score, state, outcome,
-			price_asked, schedule_asked, buy_signal, objections
+			price_asked, schedule_asked, buy_signal, objections,
+			followup_count, last_followup
 		 FROM leads WHERE id = $1`, leadID)
 
 	var rec LeadRecord
 	var state, outcome string
 	err := row.Scan(&rec.ID, &rec.Username, &rec.TotalMessages, &rec.LeadScore,
-		&state, &outcome, &rec.PriceAsked, &rec.ScheduleAsked, &rec.BuySignal, &rec.Objections)
+		&state, &outcome, &rec.PriceAsked, &rec.ScheduleAsked, &rec.BuySignal, &rec.Objections,
+		&rec.FollowupCount, &rec.LastFollowup)
 	if err != nil {
 		return nil, fmt.Errorf("get lead: %w", err)
 	}
@@ -140,7 +145,8 @@ func (r *LeadsRepo) SetOutcome(ctx context.Context, leadID string, outcome LeadO
 func (r *LeadsRepo) ListByOutcome(ctx context.Context, outcome LeadOutcome, limit int) ([]*LeadRecord, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, username, total_messages, lead_score, state, outcome,
-			price_asked, schedule_asked, buy_signal, objections
+			price_asked, schedule_asked, buy_signal, objections,
+			followup_count, last_followup
 		 FROM leads WHERE outcome = $1 ORDER BY last_seen DESC LIMIT $2`,
 		string(outcome), limit)
 	if err != nil {
@@ -153,7 +159,8 @@ func (r *LeadsRepo) ListByOutcome(ctx context.Context, outcome LeadOutcome, limi
 		var rec LeadRecord
 		var state, outcomeStr string
 		if err := rows.Scan(&rec.ID, &rec.Username, &rec.TotalMessages, &rec.LeadScore,
-			&state, &outcomeStr, &rec.PriceAsked, &rec.ScheduleAsked, &rec.BuySignal, &rec.Objections); err != nil {
+			&state, &outcomeStr, &rec.PriceAsked, &rec.ScheduleAsked, &rec.BuySignal, &rec.Objections,
+			&rec.FollowupCount, &rec.LastFollowup); err != nil {
 			return nil, fmt.Errorf("scan lead: %w", err)
 		}
 		rec.State = domain.LeadState(state)
@@ -161,4 +168,63 @@ func (r *LeadsRepo) ListByOutcome(ctx context.Context, outcome LeadOutcome, limi
 		leads = append(leads, &rec)
 	}
 	return leads, rows.Err()
+}
+
+// StaleLeads returns leads that were interested (score >= 20) but stopped responding.
+// Rules:
+//   - outcome = open (not won/lost/abandoned)
+//   - last_seen between staleAfter and maxAge ago (e.g. 24h-7d)
+//   - followup_count < maxFollowups
+//   - last_followup is null OR older than cooldown (e.g. 48h between follow-ups)
+func (r *LeadsRepo) StaleLeads(ctx context.Context, staleAfter, maxAge, cooldown time.Duration, maxFollowups, limit int) ([]*LeadRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, username, total_messages, lead_score, state, outcome,
+			price_asked, schedule_asked, buy_signal, objections,
+			followup_count, last_followup
+		FROM leads
+		WHERE outcome = 'open'
+		  AND lead_score >= 20
+		  AND total_messages >= 2
+		  AND last_seen < NOW() - $1::interval
+		  AND last_seen > NOW() - $2::interval
+		  AND followup_count < $3
+		  AND (last_followup IS NULL OR last_followup < NOW() - $4::interval)
+		ORDER BY lead_score DESC, last_seen ASC
+		LIMIT $5`,
+		fmt.Sprintf("%d seconds", int(staleAfter.Seconds())),
+		fmt.Sprintf("%d seconds", int(maxAge.Seconds())),
+		maxFollowups,
+		fmt.Sprintf("%d seconds", int(cooldown.Seconds())),
+		limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("stale leads: %w", err)
+	}
+	defer rows.Close()
+
+	var leads []*LeadRecord
+	for rows.Next() {
+		var rec LeadRecord
+		var state, outcomeStr string
+		if err := rows.Scan(&rec.ID, &rec.Username, &rec.TotalMessages, &rec.LeadScore,
+			&state, &outcomeStr, &rec.PriceAsked, &rec.ScheduleAsked, &rec.BuySignal, &rec.Objections,
+			&rec.FollowupCount, &rec.LastFollowup); err != nil {
+			return nil, fmt.Errorf("scan stale lead: %w", err)
+		}
+		rec.State = domain.LeadState(state)
+		rec.Outcome = LeadOutcome(outcomeStr)
+		leads = append(leads, &rec)
+	}
+	return leads, rows.Err()
+}
+
+// MarkFollowup increments the follow-up counter and sets last_followup to now.
+func (r *LeadsRepo) MarkFollowup(ctx context.Context, leadID string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE leads SET followup_count = followup_count + 1, last_followup = NOW() WHERE id = $1`,
+		leadID)
+	if err != nil {
+		return fmt.Errorf("mark followup: %w", err)
+	}
+	return nil
 }
