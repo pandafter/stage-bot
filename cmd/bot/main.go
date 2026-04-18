@@ -54,7 +54,13 @@ func main() {
 
 	ig := messenger.NewInstagram(cfg.PageAccessToken, cfg.InstagramAccountID, logger)
 	ks := knowledge.NewStore(cfg.GoogleSheetID, logger)
-	brain := ai.New(cfg.AnthropicAPIKey, ks, leadsRepo, convRepo, playbook, logger)
+
+	salesDataset, err := knowledge.LoadSalesDataset("internal/knowledge/dataset_ventas_instagram.json", logger)
+	if err != nil {
+		logger.Warn("sales dataset not loaded, continuing without", zap.Error(err))
+	}
+
+	brain := ai.New(cfg.AnthropicAPIKey, ks, salesDataset, leadsRepo, convRepo, playbook, logger)
 	vc := voice.NewElevenLabs(cfg.ElevenLabsAPIKey, cfg.ElevenLabsVoiceID, logger)
 	audioStore := voice.NewAudioStore()
 

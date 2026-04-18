@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/kart-academy/instagram-bot/internal/domain"
+	"github.com/kart-academy/instagram-bot/internal/knowledge"
 	"github.com/kart-academy/instagram-bot/internal/storage"
 )
 
@@ -20,6 +21,7 @@ const (
 type Brain struct {
 	claude       *Claude
 	knowledge    domain.KnowledgeBase
+	salesData    *knowledge.SalesDataset
 	leads        *storage.LeadsRepo
 	conversation *storage.ConversationRepo
 	playbook     *Playbook
@@ -29,6 +31,7 @@ type Brain struct {
 func New(
 	apiKey string,
 	ks domain.KnowledgeBase,
+	sd *knowledge.SalesDataset,
 	leads *storage.LeadsRepo,
 	conv *storage.ConversationRepo,
 	pb *Playbook,
@@ -37,6 +40,7 @@ func New(
 	return &Brain{
 		claude:       NewClaude(apiKey, logger),
 		knowledge:    ks,
+		salesData:    sd,
 		leads:        leads,
 		conversation: conv,
 		playbook:     pb,
@@ -75,7 +79,7 @@ func (b *Brain) Process(senderID, text string) (string, error) {
 	}
 	history = append(history, ClaudeMessage{Role: "user", Content: text})
 
-	systemPrompt := b.buildSystemPrompt(strategy, rec)
+	systemPrompt := b.buildSystemPrompt(strategy, intent, rec)
 	chat, err := b.claude.Chat(systemPrompt, history)
 	if err != nil {
 		b.logger.Warn("claude unavailable, using fallback", zap.Error(err))
@@ -155,15 +159,26 @@ func (b *Brain) persist(
 	}
 }
 
-// buildSystemPrompt creates the full prompt with knowledge, strategy and learned patterns.
-func (b *Brain) buildSystemPrompt(strategy domain.Strategy, rec *storage.LeadRecord) string {
+// buildSystemPrompt creates the full prompt with knowledge, strategy, lead profile,
+// sales methodology, and learned patterns from previous conversations.
+func (b *Brain) buildSystemPrompt(strategy domain.Strategy, intent domain.Intent, rec *storage.LeadRecord) string {
 	prompt := basePrompt
 	prompt += "\n\n" + strategyInstruction(strategy, rec)
+
+	// Lead profile: what the bot already knows about this person
+	prompt += "\n\n" + leadProfile(rec)
 
 	if b.knowledge != nil && b.knowledge.Enabled() {
 		if ctx := b.knowledge.FormatContext(); ctx != "" {
 			prompt += "\n\nBASA TUS RESPUESTAS EN ESTA INFORMACIÓN REAL DEL NEGOCIO:" + ctx
 			prompt += "\n\nUSA la sección de EJEMPLOS DE VENTAS para imitar el tono y estilo real del equipo."
+		}
+	}
+
+	// Sales methodology: relevant articles based on current strategy and intent
+	if b.salesData != nil {
+		if methodology := b.salesData.ForStrategy(string(strategy), string(intent)); methodology != "" {
+			prompt += "\n\n" + methodology
 		}
 	}
 

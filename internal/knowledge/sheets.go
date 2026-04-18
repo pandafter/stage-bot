@@ -110,7 +110,7 @@ func (s *Store) FormatContext() string {
 		title   string
 		content string
 	}{
-		{"INFORMACIÓN DE LA EMPRESA", data.Empresa},
+		{"INFORMACIÓN DE LA EMPRESA Y NOTAS IA", data.Empresa},
 		{"CURSOS DISPONIBLES", data.Cursos},
 		{"PRECIOS Y PLANES DE PAGO", data.Precios},
 		{"FECHAS Y DISPONIBILIDAD DE CUPOS (fuente de verdad actualizada)", data.Fechas},

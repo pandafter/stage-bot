@@ -15,7 +15,7 @@ const (
 	claudeAPIURL   = "https://api.anthropic.com/v1/messages"
 	claudeModel    = "claude-sonnet-4-6"
 	claudeVersion  = "2023-06-01"
-	defaultMaxToks = 300
+	defaultMaxToks = 500
 )
 
 type Claude struct {

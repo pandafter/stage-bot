@@ -88,6 +88,7 @@ func (p *Playbook) Refresh(ctx context.Context) error {
 	if len(wins) > 0 {
 		b.WriteString("\nLO QUE HA FUNCIONADO (ventas cerradas) — imita el estilo y los patrones:\n")
 		for _, lead := range wins {
+			b.WriteString(leadSummary(lead))
 			excerpt, err := p.buildExcerpt(dbCtx, lead.ID)
 			if err != nil {
 				continue
@@ -101,6 +102,7 @@ func (p *Playbook) Refresh(ctx context.Context) error {
 	if len(losses) > 0 {
 		b.WriteString("\nLO QUE NO HA FUNCIONADO (ventas perdidas) — evita estos patrones:\n")
 		for _, lead := range losses {
+			b.WriteString(leadSummary(lead))
 			excerpt, err := p.buildExcerpt(dbCtx, lead.ID)
 			if err != nil {
 				continue
@@ -150,6 +152,25 @@ func (p *Playbook) buildExcerpt(ctx context.Context, leadID string) (string, err
 		b.WriteString("\n")
 	}
 	return b.String(), nil
+}
+
+// leadSummary returns a brief profile line for playbook context.
+func leadSummary(lead *storage.LeadRecord) string {
+	var flags []string
+	if lead.PriceAsked {
+		flags = append(flags, "preguntó precio")
+	}
+	if lead.ScheduleAsked {
+		flags = append(flags, "preguntó fechas")
+	}
+	if lead.Objections > 0 {
+		flags = append(flags, fmt.Sprintf("%d objeciones", lead.Objections))
+	}
+	detail := ""
+	if len(flags) > 0 {
+		detail = " | " + strings.Join(flags, ", ")
+	}
+	return fmt.Sprintf("[%d msgs, score %d%s]\n", lead.TotalMessages, lead.LeadScore, detail)
 }
 
 func oneLine(s string) string {

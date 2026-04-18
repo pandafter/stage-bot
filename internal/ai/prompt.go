@@ -2,6 +2,7 @@ package ai
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/kart-academy/instagram-bot/internal/domain"
 	"github.com/kart-academy/instagram-bot/internal/storage"
@@ -123,5 +124,67 @@ func strategyInstruction(strategy domain.Strategy, rec *storage.LeadRecord) stri
 
 	default:
 		return ""
+	}
+}
+
+// leadProfile builds a contextual summary of what the bot knows about this lead,
+// so Claude can tailor its response based on accumulated conversation data.
+func leadProfile(rec *storage.LeadRecord) string {
+	if rec == nil {
+		return ""
+	}
+
+	var b strings.Builder
+	b.WriteString("PERFIL DEL LEAD (lo que ya sabes de esta conversación):\n")
+	fmt.Fprintf(&b, "- Mensajes intercambiados: %d\n", rec.TotalMessages)
+	fmt.Fprintf(&b, "- Nivel de interés (score): %d\n", rec.LeadScore)
+	fmt.Fprintf(&b, "- Estado en el embudo: %s\n", stateLabel(rec.State))
+
+	var flags []string
+	if rec.PriceAsked {
+		flags = append(flags, "ya preguntó precio")
+	}
+	if rec.ScheduleAsked {
+		flags = append(flags, "ya preguntó horarios/fechas")
+	}
+	if rec.BuySignal {
+		flags = append(flags, "mostró intención de compra")
+	}
+	if rec.Objections > 0 {
+		flags = append(flags, fmt.Sprintf("ha puesto %d objeción(es)", rec.Objections))
+	}
+
+	if len(flags) > 0 {
+		b.WriteString("- Señales detectadas: ")
+		b.WriteString(strings.Join(flags, ", "))
+		b.WriteString("\n")
+	}
+
+	if rec.TotalMessages == 0 {
+		b.WriteString("- Es su PRIMER mensaje, no lo conoces aún\n")
+	} else if rec.TotalMessages <= 3 {
+		b.WriteString("- Conversación temprana, aún estás conociendo qué busca\n")
+	} else if rec.PriceAsked && rec.ScheduleAsked {
+		b.WriteString("- Ya preguntó precio Y fechas — está evaluando activamente\n")
+	}
+
+	b.WriteString("\nUSA esta info para NO repetir lo que ya respondiste y para avanzar la conversación.")
+	return b.String()
+}
+
+func stateLabel(s domain.LeadState) string {
+	switch s {
+	case domain.LeadStateNew:
+		return "nuevo (recién llegó)"
+	case domain.LeadStateEngaged:
+		return "enganchado (respondiendo activamente)"
+	case domain.LeadStateInterested:
+		return "interesado (preguntando detalles)"
+	case domain.LeadStateHot:
+		return "caliente (cerca de decidir)"
+	case domain.LeadStateClosing:
+		return "cerrando (listo para comprar)"
+	default:
+		return string(s)
 	}
 }
