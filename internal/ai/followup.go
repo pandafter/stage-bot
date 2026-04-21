@@ -27,7 +27,18 @@ const (
 
 	// Max leads to process per cycle (don't blast everyone at once).
 	followupBatchSize = 5
+
+	// Local hour when "night" starts for promised responses.
+	followupNightStartHour = 18
 )
+
+var followupLocalTZ = func() *time.Location {
+	loc, err := time.LoadLocation("America/Bogota")
+	if err != nil {
+		return time.FixedZone("COT", -5*60*60)
+	}
+	return loc
+}()
 
 // FollowUp runs a background loop that re-engages stale leads with a natural,
 // non-spammy message. It uses Claude to craft each message based on the
@@ -136,6 +147,13 @@ func (f *FollowUp) sendFollowUp(ctx context.Context, lead *storage.LeadRecord) e
 	msgs, err := f.conv.LastN(dbCtx, lead.ID, 6)
 	if err != nil {
 		return fmt.Errorf("load history: %w", err)
+	}
+
+	if shouldDeferForNightPromise(msgs, time.Now()) {
+		f.logger.Info("followup: deferred due to night promise",
+			zap.String("lead", lead.ID),
+		)
+		return nil
 	}
 
 	// Build the follow-up prompt
@@ -247,30 +265,38 @@ CONTEXTO:
 	case 0:
 		b.WriteString(`
 	TIPO: primer follow-up (20 min). Muy suave.
-	- Menciona algo de la conversación que tuvieron. Que se note que te acuerdas de lo que habló
-	- Estructura: 1) contexto breve, 2) pregunta con 2 opciones para avanzar
+	PLANTILLA OBLIGATORIA:
+	1) [Referencia breve y amable a lo último que dijo]
+	2) [Pregunta cerrada con 2 opciones para avanzar en el flujo]
+	Formato ejemplo estructural: "Súper, te leí lo de [tema]. ¿Prefieres que sigamos por [opción A] o por [opción B]?"
 	- Máximo 2 oraciones. Cero presión`)
 
 	case 1:
 		b.WriteString(`
 	TIPO: segundo follow-up (3 horas). Pasivo y útil.
-	- Mantén tono amable y sin urgencia
-	- Estructura: 1) dato útil corto, 2) elección concreta (ej: precios o fechas)
+	PLANTILLA OBLIGATORIA:
+	1) [Dato útil muy corto]
+	2) [Pregunta cerrada con dos rutas del flujo: precios/fechas, horarios/inscripción, etc.]
+	Formato ejemplo estructural: "Te dejo este dato rápido: [dato]. ¿Quieres que te pase [opción A] o [opción B]?"
 	- Máximo 2 oraciones`)
 
 	case 2:
 		b.WriteString(`
 	TIPO: tercer follow-up (12 horas). Reconducción al flujo.
-	- No reclames ni insinúes compromiso previo
-	- Estructura: 1) validación breve, 2) opción para continuar por flujo de inscripción
+	PLANTILLA OBLIGATORIA:
+	1) [Validación breve y respetuosa]
+	2) [Pregunta cerrada para continuar por flujo de inscripción]
+	Formato ejemplo estructural: "Todo bien si estabas ocupado/a. ¿Seguimos con [opción A] o te comparto [opción B] para avanzar?"
 	- Si aplica, pregunta si le compartes el link de inscripción
 	- Máximo 2 oraciones`)
 
 	default:
 		b.WriteString(`
 	TIPO: cuarto follow-up (1 día). Último toque, muy respetuoso.
-	- Da salida elegante si no es el momento
-	- Estructura: 1) cierre amable, 2) opción simple para retomar cuando quiera
+	PLANTILLA OBLIGATORIA:
+	1) [Cierre amable sin presión]
+	2) [Opción simple para retomar cuando quiera]
+	Formato ejemplo estructural: "Tranqui si ahora no te queda fácil. Cuando quieras, te dejo [opción A] o [opción B] y avanzamos."
 	- Si está listo para avanzar, prioriza link de inscripción antes de cualquier link de pago total
 	- Máximo 2 oraciones`)
 	}
@@ -281,14 +307,96 @@ REGLAS:
 - Escribe SOLO el mensaje. Sin comillas, sin explicaciones, sin encabezados
 - Suena a persona real escribiendo desde el celular. Imperfecto, rápido, natural
 - NO ataques al cliente, NO reclames, NO uses frases tipo "quedamos en..." o "te comprometiste"
+- NO uses tono pasivo-agresivo, sarcasmo, regaños ni culpa
 - NO uses "qué más", "cuéntame", "Excelente", "no te lo pierdas", "oferta", "aprovecha"
 - NO copies frases de estas instrucciones. Inventa algo propio basado en la conversación
 - Mantén formato guiado por opciones para llevar al flujo
 - Si ya está listo para pagar, primero prioriza enviar el link de inscripción
 - El link de pago total va después y solo si corresponde (ej: tarjeta), según la info del contexto
+- Si el cliente dijo que respondía en la noche, NUNCA lo reproches; retoma con calma y pregunta por la siguiente opción del flujo
 - Máximo 1 emoji. Casi siempre mejor sin emoji`)
 
 	return b.String()
+}
+
+func shouldDeferForNightPromise(msgs []storage.ConversationMessage, now time.Time) bool {
+	lastUser, ok := lastUserMessage(msgs)
+	if !ok {
+		return false
+	}
+
+	content := normalizeFollowupText(lastUser.Content)
+	if !containsAnyFollowup(content,
+		"en la noche",
+		"esta noche",
+		"por la noche",
+		"mas tarde en la noche",
+		"hoy en la noche",
+	) {
+		return false
+	}
+
+	if !containsAnyFollowup(content,
+		"te aviso",
+		"aviso",
+		"te escribo",
+		"escribo",
+		"te confirmo",
+		"confirmo",
+		"te respondo",
+		"respondo",
+		"te cuento",
+		"cuento",
+	) {
+		return false
+	}
+
+	nowLocal := now.In(followupLocalTZ)
+	msgLocal := lastUser.CreatedAt.In(followupLocalTZ)
+
+	// Defer only until the night block of the same day the promise was made.
+	if sameLocalDay(nowLocal, msgLocal) && nowLocal.Hour() < followupNightStartHour {
+		return true
+	}
+	return false
+}
+
+func lastUserMessage(msgs []storage.ConversationMessage) (storage.ConversationMessage, bool) {
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == storage.RoleUser {
+			return msgs[i], true
+		}
+	}
+	return storage.ConversationMessage{}, false
+}
+
+func normalizeFollowupText(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	replacer := strings.NewReplacer(
+		"á", "a",
+		"é", "e",
+		"í", "i",
+		"ó", "o",
+		"ú", "u",
+		"ü", "u",
+	)
+	s = replacer.Replace(s)
+	return strings.Join(strings.Fields(s), " ")
+}
+
+func containsAnyFollowup(s string, needles ...string) bool {
+	for _, n := range needles {
+		if strings.Contains(s, n) {
+			return true
+		}
+	}
+	return false
+}
+
+func sameLocalDay(a, b time.Time) bool {
+	ay, am, ad := a.Date()
+	by, bm, bd := b.Date()
+	return ay == by && am == bm && ad == bd
 }
 
 func followupStrategy(lead *storage.LeadRecord) string {
