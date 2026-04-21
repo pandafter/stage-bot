@@ -170,13 +170,13 @@ func (r *LeadsRepo) ListByOutcome(ctx context.Context, outcome LeadOutcome, limi
 	return leads, rows.Err()
 }
 
-// StaleLeads returns leads that were interested (score >= 20) but stopped responding.
-// Rules:
-//   - outcome = open (not won/lost/abandoned)
-//   - last_seen between staleAfter and maxAge ago (e.g. 24h-7d)
-//   - followup_count < maxFollowups
-//   - last_followup is null OR older than cooldown (e.g. 48h between follow-ups)
-func (r *LeadsRepo) StaleLeads(ctx context.Context, staleAfter, maxAge, cooldown time.Duration, maxFollowups, limit int) ([]*LeadRecord, error) {
+// StaleLeads returns open leads that are due for a follow-up according to the
+// exact schedule from last user message:
+//   - followup_count = 0 -> due at 20m up to 3h
+//   - followup_count = 1 -> due at 3h up to 12h
+//   - followup_count = 2 -> due at 12h up to 24h
+//   - followup_count = 3 -> due at 24h+
+func (r *LeadsRepo) StaleLeads(ctx context.Context, d1, d2, d3, d4 time.Duration, limit int) ([]*LeadRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, username, total_messages, lead_score, state, outcome,
 			price_asked, schedule_asked, buy_signal, objections,
@@ -185,16 +185,21 @@ func (r *LeadsRepo) StaleLeads(ctx context.Context, staleAfter, maxAge, cooldown
 		WHERE outcome = 'open'
 		  AND lead_score >= 20
 		  AND total_messages >= 2
-		  AND last_seen < NOW() - $1::interval
-		  AND last_seen > NOW() - $2::interval
-		  AND followup_count < $3
-		  AND (last_followup IS NULL OR last_followup < NOW() - $4::interval)
+		  AND (
+			(followup_count = 0 AND last_seen <= NOW() - $1::interval AND last_seen > NOW() - $2::interval)
+			OR
+			(followup_count = 1 AND last_seen <= NOW() - $2::interval AND last_seen > NOW() - $3::interval)
+			OR
+			(followup_count = 2 AND last_seen <= NOW() - $3::interval AND last_seen > NOW() - $4::interval)
+			OR
+			(followup_count = 3 AND last_seen <= NOW() - $4::interval)
+		  )
 		ORDER BY lead_score DESC, last_seen ASC
 		LIMIT $5`,
-		fmt.Sprintf("%d seconds", int(staleAfter.Seconds())),
-		fmt.Sprintf("%d seconds", int(maxAge.Seconds())),
-		maxFollowups,
-		fmt.Sprintf("%d seconds", int(cooldown.Seconds())),
+		fmt.Sprintf("%d seconds", int(d1.Seconds())),
+		fmt.Sprintf("%d seconds", int(d2.Seconds())),
+		fmt.Sprintf("%d seconds", int(d3.Seconds())),
+		fmt.Sprintf("%d seconds", int(d4.Seconds())),
 		limit,
 	)
 	if err != nil {
@@ -249,7 +254,7 @@ func (r *LeadsRepo) AutoAbandon(ctx context.Context, idleThreshold time.Duration
 		WHERE outcome = 'open'
 		  AND total_messages >= 2
 		  AND last_seen < NOW() - $1::interval
-		  AND followup_count >= 2`,
+		  AND followup_count >= 4`,
 		fmt.Sprintf("%d seconds", int(idleThreshold.Seconds())),
 	)
 	if err != nil {

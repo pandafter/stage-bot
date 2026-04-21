@@ -14,23 +14,16 @@ import (
 
 const (
 	// How often the follow-up loop checks for stale leads.
-	followupCheckInterval = 15 * time.Minute
+	followupCheckInterval = 5 * time.Minute
 
-	// A lead is "stale" if they haven't messaged in this long.
-	// Instagram only allows messaging within 24h of the user's last message,
-	// so we target leads that went quiet recently but are still inside the window.
-	followupStaleAfter = 6 * time.Hour
-
-	// Stop trying after this long — Instagram's 24h window means anything
-	// beyond that will get rejected by Meta's API.
-	followupMaxAge = 23 * time.Hour
-
-	// Minimum gap between follow-ups to the same person (within the 24h window).
-	followupCooldown = 4 * time.Hour
+	// Fixed follow-up schedule from the user's last inbound message.
+	followupAfter1 = 20 * time.Minute
+	followupAfter2 = 3 * time.Hour
+	followupAfter3 = 12 * time.Hour
+	followupAfter4 = 24 * time.Hour
 
 	// Max follow-up attempts per lead within one 24h window.
-	// With a 4h cooldown and 23h max age, realistically 1-2 will fit.
-	followupMaxAttempts = 2
+	followupMaxAttempts = 4
 
 	// Max leads to process per cycle (don't blast everyone at once).
 	followupBatchSize = 5
@@ -99,7 +92,7 @@ func (f *FollowUp) runCycle(ctx context.Context) {
 		f.logger.Info("followup: auto-abandoned stale leads", zap.Int("count", n))
 	}
 
-	stale, err := f.leads.StaleLeads(dbCtx, followupStaleAfter, followupMaxAge, followupCooldown, followupMaxAttempts, followupBatchSize)
+	stale, err := f.leads.StaleLeads(dbCtx, followupAfter1, followupAfter2, followupAfter3, followupAfter4, followupBatchSize)
 	if err != nil {
 		f.logger.Warn("followup: failed to fetch stale leads", zap.Error(err))
 		return
@@ -218,7 +211,7 @@ func (f *FollowUp) sendFollowUp(ctx context.Context, lead *storage.LeadRecord) e
 func (f *FollowUp) buildFollowUpPrompt(lead *storage.LeadRecord, msgs []storage.ConversationMessage) string {
 	var b strings.Builder
 
-	b.WriteString(`Eres alguien del equipo de una academia de karting. Escribes UN solo mensaje para retomar una conversación con alguien que dejó de contestar. Escribes como persona, no como vendedor ni como bot.
+	b.WriteString(`Eres alguien del equipo de una academia de karting. Escribes UN solo mensaje de seguimiento pasivo para retomar una conversación. Escribes como persona, no como vendedor agresivo ni como bot.
 
 CONTEXTO:
 `)
@@ -253,18 +246,33 @@ CONTEXTO:
 	switch lead.FollowupCount {
 	case 0:
 		b.WriteString(`
-TIPO: primer follow-up. Casual y corto.
-- Menciona algo de la conversación que tuvieron. Que se note que te acuerdas de lo que habló
-- Agrega un dato nuevo si puedes (una fecha próxima, algo que pasó en la pista)
-- Máximo 2 oraciones. Como un mensaje rápido, no una carta`)
+	TIPO: primer follow-up (20 min). Muy suave.
+	- Menciona algo de la conversación que tuvieron. Que se note que te acuerdas de lo que habló
+	- Estructura: 1) contexto breve, 2) pregunta con 2 opciones para avanzar
+	- Máximo 2 oraciones. Cero presión`)
+
+	case 1:
+		b.WriteString(`
+	TIPO: segundo follow-up (3 horas). Pasivo y útil.
+	- Mantén tono amable y sin urgencia
+	- Estructura: 1) dato útil corto, 2) elección concreta (ej: precios o fechas)
+	- Máximo 2 oraciones`)
+
+	case 2:
+		b.WriteString(`
+	TIPO: tercer follow-up (12 horas). Reconducción al flujo.
+	- No reclames ni insinúes compromiso previo
+	- Estructura: 1) validación breve, 2) opción para continuar por flujo de inscripción
+	- Si aplica, pregunta si le compartes el link de inscripción
+	- Máximo 2 oraciones`)
 
 	default:
 		b.WriteString(`
-TIPO: segundo y último follow-up. Cierre suave.
-- Cambia de ángulo respecto al primer follow-up
-- Puedes mencionar algo nuevo (fecha, cupos) pero sin insistir
-- Dale la salida si no le interesa. Que sienta que respetas su tiempo
-- Máximo 2 oraciones`)
+	TIPO: cuarto follow-up (1 día). Último toque, muy respetuoso.
+	- Da salida elegante si no es el momento
+	- Estructura: 1) cierre amable, 2) opción simple para retomar cuando quiera
+	- Si está listo para avanzar, prioriza link de inscripción antes de cualquier link de pago total
+	- Máximo 2 oraciones`)
 	}
 
 	b.WriteString(`
@@ -272,8 +280,12 @@ TIPO: segundo y último follow-up. Cierre suave.
 REGLAS:
 - Escribe SOLO el mensaje. Sin comillas, sin explicaciones, sin encabezados
 - Suena a persona real escribiendo desde el celular. Imperfecto, rápido, natural
+- NO ataques al cliente, NO reclames, NO uses frases tipo "quedamos en..." o "te comprometiste"
 - NO uses "qué más", "cuéntame", "Excelente", "no te lo pierdas", "oferta", "aprovecha"
 - NO copies frases de estas instrucciones. Inventa algo propio basado en la conversación
+- Mantén formato guiado por opciones para llevar al flujo
+- Si ya está listo para pagar, primero prioriza enviar el link de inscripción
+- El link de pago total va después y solo si corresponde (ej: tarjeta), según la info del contexto
 - Máximo 1 emoji. Casi siempre mejor sin emoji`)
 
 	return b.String()

@@ -12,7 +12,7 @@ var offTopicKeywords = []string{
 	"musica", "receta", "pelicula", "serie", "noticias",
 }
 
-// accentNormalizer receives already-lowercased input from normalizeForMatch,
+// normalizeForMatch lowercases first and then applies this replacer,
 // so only lowercase accented runes are needed here.
 var accentNormalizer = strings.NewReplacer(
 	"á", "a",
