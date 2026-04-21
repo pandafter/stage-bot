@@ -2,6 +2,9 @@ package webhook
 
 import "strings"
 
+// punctuationToTrim defines token suffix/prefix characters removed during keyword matching.
+const punctuationToTrim = ".,;:!?¡¿\"'()[]{}"
+
 // ParseMessages extracts internal IncomingMessage structs from a webhook payload.
 // It filters out echo messages, read receipts, and other non-message events.
 func ParseMessages(payload *WebhookPayload) []IncomingMessage {
@@ -94,7 +97,7 @@ func ParseCommentTriggers(payload *WebhookPayload, latestMediaID string, keyword
 				MessageID:   change.Value.ID,
 				Timestamp:   entry.Time,
 				Type:        MessageTypeText,
-				Text:        text,
+				Text:        change.Value.Text,
 			}
 
 			messages = append(messages, msg)
@@ -106,7 +109,7 @@ func ParseCommentTriggers(payload *WebhookPayload, latestMediaID string, keyword
 
 func containsWord(text, word string) bool {
 	for _, token := range strings.Fields(strings.ToLower(text)) {
-		normalized := strings.Trim(token, ".,;:!?¡¿\"'()[]{}")
+		normalized := strings.Trim(token, punctuationToTrim)
 		if normalized == word {
 			return true
 		}

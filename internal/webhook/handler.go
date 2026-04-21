@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -20,6 +21,7 @@ import (
 )
 
 const graphAPIBase = "https://graph.instagram.com/v21.0"
+const graphAPITimeout = 5 * time.Second
 
 type Handler struct {
 	cfg        *config.Config
@@ -28,6 +30,8 @@ type Handler struct {
 	voice      domain.VoiceService
 	audioStore domain.AudioStore
 	queue      queue.Queue
+	graphHTTP  *http.Client
+	keyword    string
 	logger     *zap.Logger
 }
 
@@ -40,6 +44,11 @@ func NewHandler(
 	q queue.Queue,
 	logger *zap.Logger,
 ) *Handler {
+	keyword := strings.TrimSpace(cfg.CommentTriggerKeyword)
+	if keyword == "" {
+		keyword = "piloto"
+	}
+
 	return &Handler{
 		cfg:        cfg,
 		messenger:  m,
@@ -47,6 +56,16 @@ func NewHandler(
 		voice:      vc,
 		audioStore: as,
 		queue:      q,
+		graphHTTP: &http.Client{
+			Timeout: graphAPITimeout,
+			Transport: &http.Transport{
+				Proxy:               http.ProxyFromEnvironment,
+				MaxIdleConns:        20,
+				MaxIdleConnsPerHost: 10,
+				IdleConnTimeout:     30 * time.Second,
+			},
+		},
+		keyword:    keyword,
 		logger:     logger,
 	}
 }
@@ -102,7 +121,7 @@ func (h *Handler) Receive(c *fiber.Ctx) error {
 		if err != nil {
 			h.logger.Warn("failed to resolve latest media for comment trigger", zap.Error(err))
 		} else {
-			commentTriggers := ParseCommentTriggers(&payload, latestMediaID, "piloto")
+			commentTriggers := ParseCommentTriggers(&payload, latestMediaID, h.keyword)
 			messages = append(messages, commentTriggers...)
 		}
 	}
@@ -301,22 +320,27 @@ func (h *Handler) fetchLatestMediaID(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("instagram credentials not configured")
 	}
 
-	url := fmt.Sprintf("%s/%s/media?fields=id&limit=1&access_token=%s",
-		graphAPIBase, h.cfg.InstagramAccountID, h.cfg.PageAccessToken)
+	url := fmt.Sprintf("%s/%s/media?fields=id&limit=1", graphAPIBase, h.cfg.InstagramAccountID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return "", fmt.Errorf("create latest media request: %w", err)
 	}
+	req.Header.Set("Authorization", "Bearer "+h.cfg.PageAccessToken)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.graphHTTP.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("fetch latest media: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			h.logger.Warn("failed to close latest media response body", zap.Error(cerr))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("fetch latest media: status %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("fetch latest media: status %d body=%q", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
 	var mediaResp mediaListResponse
