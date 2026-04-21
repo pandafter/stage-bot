@@ -85,6 +85,8 @@ func SelectStrategy(intent domain.Intent, rec *storage.LeadRecord) domain.Strate
 
 	case domain.IntentOffTopic:
 		return domain.StrategyRedirect
+	case domain.IntentUnknown:
+		return domain.StrategyRedirect
 	}
 
 	switch {

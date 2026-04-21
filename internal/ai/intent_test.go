@@ -90,7 +90,8 @@ func TestDetectIntent(t *testing.T) {
 
 		// Unknown / off-topic
 		{"jajajajaja", domain.IntentUnknown},
-		{"qué clima hace hoy?", domain.IntentUnknown},
+		{"qué clima hace hoy?", domain.IntentOffTopic},
+		{"quién ganó el partido?", domain.IntentOffTopic},
 		{"🔥🔥🔥", domain.IntentUnknown},
 	}
 
