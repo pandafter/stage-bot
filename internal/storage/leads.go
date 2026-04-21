@@ -171,11 +171,12 @@ func (r *LeadsRepo) ListByOutcome(ctx context.Context, outcome LeadOutcome, limi
 }
 
 // StaleLeads returns open leads that are due for a follow-up according to the
-// exact schedule from last user message:
-//   - followup_count = 0 -> due at 20m up to 3h
-//   - followup_count = 1 -> due at 3h up to 12h
-//   - followup_count = 2 -> due at 12h up to 24h
-//   - followup_count = 3 -> due at 24h+
+// minimum schedule from the last user message:
+//   - followup_count = 0 -> due at >= 20m
+//   - followup_count = 1 -> due at >= 3h
+//   - followup_count = 2 -> due at >= 12h
+//   - followup_count = 3 -> due at >= 24h
+// This avoids losing leads when a follow-up is intentionally deferred.
 func (r *LeadsRepo) StaleLeads(ctx context.Context, d1, d2, d3, d4 time.Duration, limit int) ([]*LeadRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, username, total_messages, lead_score, state, outcome,
@@ -186,11 +187,11 @@ func (r *LeadsRepo) StaleLeads(ctx context.Context, d1, d2, d3, d4 time.Duration
 		  AND lead_score >= 20
 		  AND total_messages >= 2
 		  AND (
-			(followup_count = 0 AND last_seen <= NOW() - $1::interval AND last_seen > NOW() - $2::interval)
+			(followup_count = 0 AND last_seen <= NOW() - $1::interval)
 			OR
-			(followup_count = 1 AND last_seen <= NOW() - $2::interval AND last_seen > NOW() - $3::interval)
+			(followup_count = 1 AND last_seen <= NOW() - $2::interval)
 			OR
-			(followup_count = 2 AND last_seen <= NOW() - $3::interval AND last_seen > NOW() - $4::interval)
+			(followup_count = 2 AND last_seen <= NOW() - $3::interval)
 			OR
 			(followup_count = 3 AND last_seen <= NOW() - $4::interval)
 		  )
