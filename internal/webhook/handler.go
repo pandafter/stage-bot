@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -17,6 +18,8 @@ import (
 	"github.com/kart-academy/instagram-bot/internal/domain"
 	"github.com/kart-academy/instagram-bot/internal/queue"
 )
+
+const graphAPIBase = "https://graph.instagram.com/v21.0"
 
 type Handler struct {
 	cfg        *config.Config
@@ -94,6 +97,15 @@ func (h *Handler) Receive(c *fiber.Ctx) error {
 	}
 
 	messages := ParseMessages(&payload)
+	if HasCommentChanges(&payload) {
+		latestMediaID, err := h.fetchLatestMediaID(c.Context())
+		if err != nil {
+			h.logger.Warn("failed to resolve latest media for comment trigger", zap.Error(err))
+		} else {
+			commentTriggers := ParseCommentTriggers(&payload, latestMediaID, "piloto")
+			messages = append(messages, commentTriggers...)
+		}
+	}
 
 	for _, msg := range messages {
 		h.logger.Info("message received",
@@ -276,4 +288,44 @@ func safePrefix(s string, n int) string {
 		return s
 	}
 	return s[:n] + "…"
+}
+
+type mediaListResponse struct {
+	Data []struct {
+		ID string `json:"id"`
+	} `json:"data"`
+}
+
+func (h *Handler) fetchLatestMediaID(ctx context.Context) (string, error) {
+	if h.cfg.InstagramAccountID == "" || h.cfg.PageAccessToken == "" {
+		return "", fmt.Errorf("instagram credentials not configured")
+	}
+
+	url := fmt.Sprintf("%s/%s/media?fields=id&limit=1&access_token=%s",
+		graphAPIBase, h.cfg.InstagramAccountID, h.cfg.PageAccessToken)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", fmt.Errorf("create latest media request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("fetch latest media: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("fetch latest media: status %d", resp.StatusCode)
+	}
+
+	var mediaResp mediaListResponse
+	if err := json.NewDecoder(resp.Body).Decode(&mediaResp); err != nil {
+		return "", fmt.Errorf("decode latest media response: %w", err)
+	}
+	if len(mediaResp.Data) == 0 || mediaResp.Data[0].ID == "" {
+		return "", fmt.Errorf("latest media not found")
+	}
+
+	return mediaResp.Data[0].ID, nil
 }

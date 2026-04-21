@@ -12,6 +12,7 @@ type Entry struct {
 	ID        string      `json:"id"`
 	Time      int64       `json:"time"`
 	Messaging []Messaging `json:"messaging"`
+	Changes   []Change    `json:"changes"`
 }
 
 type Messaging struct {
@@ -60,6 +61,22 @@ type Postback struct {
 
 type ReplyTo struct {
 	MID string `json:"mid"`
+}
+
+type Change struct {
+	Field string      `json:"field"`
+	Value ChangeValue `json:"value"`
+}
+
+type ChangeValue struct {
+	ID    string      `json:"id"`
+	Text  string      `json:"text"`
+	From  Participant `json:"from"`
+	Media Media       `json:"media"`
+}
+
+type Media struct {
+	ID string `json:"id"`
 }
 
 // Internal message representation
