@@ -61,3 +61,21 @@ func TestShouldNotDeferWithoutNightPromise(t *testing.T) {
 	}
 }
 
+func TestDropPastFollowupResponses(t *testing.T) {
+	msgs := []storage.ConversationMessage{
+		{Role: storage.RoleUser, Content: "hola", Intent: "GREETING"},
+		{Role: storage.RoleAssistant, Content: "te escribo", Intent: "FOLLOWUP"},
+		{Role: storage.RoleAssistant, Content: "te paso precios", Intent: "PRICE_INQUIRY"},
+	}
+
+	filtered := dropPastFollowupResponses(msgs)
+	if len(filtered) != 2 {
+		t.Fatalf("got %d messages, want 2", len(filtered))
+	}
+	if filtered[0].Role != storage.RoleUser {
+		t.Fatal("expected first message to remain user message")
+	}
+	if filtered[1].Intent != "PRICE_INQUIRY" {
+		t.Fatalf("expected non-followup assistant message to remain, got %q", filtered[1].Intent)
+	}
+}

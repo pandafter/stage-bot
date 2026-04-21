@@ -2,7 +2,8 @@ package webhook
 
 import "strings"
 
-// punctuationToTrim defines token suffix/prefix characters removed during keyword matching.
+// punctuationToTrim defines boundary punctuation stripped from tokens before keyword checks,
+// so matches still work for inputs like "piloto!" or "¿piloto?".
 const punctuationToTrim = ".,;:!?¡¿\"'()[]{}"
 
 // ParseMessages extracts internal IncomingMessage structs from a webhook payload.

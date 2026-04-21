@@ -30,6 +30,10 @@ const (
 
 	// Local hour when "night" starts for promised responses.
 	followupNightStartHour = 18
+
+	// Message windows for follow-up prompt context.
+	followupLoadWindow   = 20
+	followupContextLimit = 6
 )
 
 var followupLocalTZ = func() *time.Location {
@@ -144,9 +148,13 @@ func (f *FollowUp) sendFollowUp(ctx context.Context, lead *storage.LeadRecord) e
 	dbCtx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
 
-	msgs, err := f.conv.LastN(dbCtx, lead.ID, 6)
+	msgs, err := f.conv.LastN(dbCtx, lead.ID, followupLoadWindow)
 	if err != nil {
 		return fmt.Errorf("load history: %w", err)
+	}
+	msgs = dropPastFollowupResponses(msgs)
+	if len(msgs) > followupContextLimit {
+		msgs = msgs[len(msgs)-followupContextLimit:]
 	}
 
 	if shouldDeferForNightPromise(msgs, time.Now()) {
@@ -310,6 +318,7 @@ REGLAS:
 - NO uses tono pasivo-agresivo, sarcasmo, regaños ni culpa
 - NO uses "qué más", "cuéntame", "Excelente", "no te lo pierdas", "oferta", "aprovecha"
 - NO copies frases de estas instrucciones. Inventa algo propio basado en la conversación
+- NUNCA inventes fechas, horas, compromisos o acuerdos que el cliente no haya dicho explícitamente
 - Mantén formato guiado por opciones para llevar al flujo
 - Si ya está listo para pagar, primero prioriza enviar el link de inscripción
 - El link de pago total va después y solo si corresponde (ej: tarjeta), según la info del contexto
@@ -407,4 +416,15 @@ func followupStrategy(lead *storage.LeadRecord) string {
 		return "FOLLOWUP_WARM"
 	}
 	return "FOLLOWUP_MILD"
+}
+
+func dropPastFollowupResponses(msgs []storage.ConversationMessage) []storage.ConversationMessage {
+	out := make([]storage.ConversationMessage, 0, len(msgs))
+	for _, m := range msgs {
+		if m.Role == storage.RoleAssistant && strings.EqualFold(strings.TrimSpace(m.Intent), "FOLLOWUP") {
+			continue
+		}
+		out = append(out, m)
+	}
+	return out
 }

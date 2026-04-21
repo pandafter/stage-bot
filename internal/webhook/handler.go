@@ -339,7 +339,10 @@ func (h *Handler) fetchLatestMediaID(ctx context.Context) (string, error) {
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			h.logger.Warn("failed to read latest media error response body", zap.Error(readErr))
+		}
 		return "", fmt.Errorf("fetch latest media: status %d body=%q", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
