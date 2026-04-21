@@ -88,6 +88,12 @@ func DetectIntent(text string) domain.Intent {
 		return domain.IntentThanks
 	}
 
+	// Off-topic (outside sales flow/context)
+	if containsAny(lower, "clima", "tiempo hoy", "presidente", "fútbol", "futbol", "partido",
+		"música", "musica", "receta", "película", "pelicula", "serie", "noticias") {
+		return domain.IntentOffTopic
+	}
+
 	return domain.IntentUnknown
 }
 

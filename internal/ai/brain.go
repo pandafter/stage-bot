@@ -264,10 +264,17 @@ func fallbackReply(text string) string {
 			"dale! cómo te llamas y qué nivel te interesa?",
 		)
 
+	case containsAny(lower, "clima", "tiempo hoy", "presidente", "fútbol", "futbol", "partido",
+		"música", "musica", "receta", "película", "pelicula", "serie", "noticias"):
+		return pick(
+			"de ese tema no te puedo ayudar bien por acá. si quieres te ayudo con los cursos: prefieres que te cuente precios o fechas?",
+			"me enfoco en info de los cursos de kart. quieres que empecemos por horarios o por costos?",
+		)
+
 	default:
 		return pick(
-			"hola! en qué te puedo ayudar?",
-			"hola, cómo estás? cuéntame qué necesitas",
+			"hola! te ayudo con los cursos. prefieres que te cuente precios o fechas?",
+			"si quieres avanzamos rápido: te paso primero horarios o costos?",
 		)
 	}
 }

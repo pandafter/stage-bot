@@ -133,3 +133,10 @@ func TestSelectStrategy_PaymentConfirms(t *testing.T) {
 		t.Errorf("payment confirm strategy = %s, want %s", s, domain.StrategyConfirmSale)
 	}
 }
+
+func TestSelectStrategy_UnknownRedirects(t *testing.T) {
+	rec := &storage.LeadRecord{LeadScore: 90}
+	if s := SelectStrategy(domain.IntentUnknown, rec); s != domain.StrategyRedirect {
+		t.Errorf("unknown strategy = %s, want %s", s, domain.StrategyRedirect)
+	}
+}
