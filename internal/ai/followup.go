@@ -30,7 +30,7 @@ const (
 	// Local hour when "night" starts for promised responses.
 	followupNightStartHour = 18
 
-	// Message windows for follow-up prompt context.
+	// Message window for follow-up logic context.
 	followupLoadWindow   = 20
 	followupContextLimit = 6
 )
@@ -43,9 +43,8 @@ var followupLocalTZ = func() *time.Location {
 	return loc
 }()
 
-// FollowUp runs a background loop that re-engages stale leads with a natural,
-// non-spammy message. It uses Claude to craft each message based on the
-// conversation history so every follow-up feels personal.
+// FollowUp runs a background loop that re-engages stale leads with a simple,
+// low-pressure message.
 type FollowUp struct {
 	brain     *Brain
 	messenger domain.Messenger
@@ -163,21 +162,7 @@ func (f *FollowUp) sendFollowUp(ctx context.Context, lead *storage.LeadRecord) e
 		return nil
 	}
 
-	// Build the follow-up prompt
-	prompt := f.buildFollowUpPrompt(lead, msgs)
-
-	history := []ClaudeMessage{
-		{Role: "user", Content: "[SISTEMA: genera el mensaje de follow-up]"},
-	}
-
-	chat, err := f.brain.claude.Chat(prompt, history)
-	if err != nil {
-		return fmt.Errorf("claude: %w", err)
-	}
-
-	// Clean up — Claude sometimes wraps in quotes
-	text := strings.TrimSpace(chat.Text)
-	text = strings.Trim(text, "\"")
+	text := simpleFollowupMessage(lead)
 
 	// Send it
 	if err := f.messenger.SetTypingOn(lead.ID); err != nil {
@@ -210,9 +195,6 @@ func (f *FollowUp) sendFollowUp(ctx context.Context, lead *storage.LeadRecord) e
 		ContentType: "text",
 		Intent:      "FOLLOWUP",
 		Strategy:    followupStrategy(lead),
-		TokensIn:    chat.InputTokens,
-		TokensOut:   chat.OutputTokens,
-		Model:       chat.Model,
 		ScoreAfter:  lead.LeadScore,
 	}
 	if err := f.conv.Append(dbCtx, fuMsg); err != nil {
@@ -233,88 +215,17 @@ func (f *FollowUp) sendFollowUp(ctx context.Context, lead *storage.LeadRecord) e
 	return nil
 }
 
-func (f *FollowUp) buildFollowUpPrompt(lead *storage.LeadRecord, msgs []storage.ConversationMessage) string {
-	var b strings.Builder
-
-	b.WriteString(`Eres alguien del equipo de una academia de karting. Escribes UN solo mensaje de seguimiento pasivo para retomar una conversación. Escribes como persona, no como vendedor agresivo ni como bot.
-
-CONTEXTO:
-`)
-	fmt.Fprintf(&b, "- Llevan %d mensajes en la conversación\n", lead.TotalMessages)
-	fmt.Fprintf(&b, "- Score de interés: %d\n", lead.LeadScore)
-	fmt.Fprintf(&b, "- Es el follow-up #%d\n", lead.FollowupCount+1)
-
-	if lead.PriceAsked {
-		b.WriteString("- Ya había preguntado por precios\n")
+func simpleFollowupMessage(lead *storage.LeadRecord) string {
+	if lead.BuySignal || lead.LeadScore >= 61 {
+		return "Hola, ¿cómo estás? ¿Quieres que sigamos con la inscripción?"
 	}
-	if lead.ScheduleAsked {
-		b.WriteString("- Ya había preguntado por fechas/horarios\n")
+	if lead.PriceAsked && !lead.ScheduleAsked {
+		return "Hola, ¿cómo estás? ¿Quieres que sigamos con horarios o con inscripción?"
 	}
-	if lead.BuySignal {
-		b.WriteString("- Había mostrado intención de compra\n")
+	if lead.ScheduleAsked && !lead.PriceAsked {
+		return "Hola, ¿cómo estás? ¿Quieres que sigamos con precios o con inscripción?"
 	}
-
-	// Include conversation tail
-	if len(msgs) > 0 {
-		b.WriteString("\nÚLTIMOS MENSAJES DE LA CONVERSACIÓN:\n")
-		for _, m := range msgs {
-			who := "Cliente"
-			if m.Role == storage.RoleAssistant {
-				who = "Tú"
-			}
-			content := oneLine(m.Content)
-			fmt.Fprintf(&b, "%s: %s\n", who, content)
-		}
-	}
-
-	// Strategy based on attempt number
-	switch lead.FollowupCount {
-	case 0:
-		b.WriteString(`
-	TIPO: primer follow-up (20 min). Muy suave.
-	PLANTILLA OBLIGATORIA:
-	1) [Referencia breve y amable a lo último que dijo]
-	2) [Pregunta cerrada con 2 opciones para avanzar en el flujo]
-	Formato ejemplo estructural: "Súper, te leí lo de [tema]. ¿Prefieres que sigamos por [opción A] o por [opción B]?"
-	- Máximo 2 oraciones. Cero presión`)
-
-	case 1:
-		b.WriteString(`
-	TIPO: segundo follow-up (1 día). Pasivo y útil.
-	PLANTILLA OBLIGATORIA:
-	1) [Dato útil muy corto]
-	2) [Pregunta cerrada con dos rutas del flujo: precios/fechas, horarios/inscripción, etc.]
-	Formato ejemplo estructural: "Te dejo este dato rápido: [dato]. ¿Quieres que te pase [opción A] o [opción B]?"
-	- Máximo 2 oraciones`)
-
-	default:
-		b.WriteString(`
-	TIPO: tercer follow-up (2 días). Último toque, muy respetuoso.
-	PLANTILLA OBLIGATORIA:
-	1) [Cierre amable sin presión]
-	2) [Opción simple para retomar cuando quiera]
-	Formato ejemplo estructural: "Tranqui si ahora no te queda fácil. Cuando quieras, te dejo [opción A] o [opción B] y avanzamos."
-	- Si está listo para avanzar, prioriza link de inscripción antes de cualquier link de pago total
-	- Máximo 2 oraciones`)
-	}
-
-	b.WriteString(`
-
-REGLAS:
-- Escribe SOLO el mensaje. Sin comillas, sin explicaciones, sin encabezados
-- Suena a persona real escribiendo desde el celular. Imperfecto, rápido, natural
-- NO ataques al cliente, NO reclames, NO uses frases tipo "quedamos en..." o "te comprometiste"
-- NO uses tono pasivo-agresivo, sarcasmo, regaños ni culpa
-- NO uses "qué más", "cuéntame", "Excelente", "no te lo pierdas", "oferta", "aprovecha"
-- NO copies frases de estas instrucciones. Inventa algo propio basado en la conversación
-- NUNCA inventes fechas, horas, compromisos o acuerdos que el cliente no haya dicho explícitamente
-- Mantén formato guiado por opciones para llevar al flujo
-- Si ya está listo para pagar, primero prioriza enviar el link de inscripción
-- El link de pago total va después y solo si corresponde (ej: tarjeta), según la info del contexto
-- Si el cliente dijo que respondía en la noche, NUNCA lo reproches; retoma con calma y pregunta por la siguiente opción del flujo
-- Máximo 1 emoji. Casi siempre mejor sin emoji`)
-
-	return b.String()
+	return "Hola, ¿cómo estás? ¿Quieres que sigamos con precios o horarios?"
 }
 
 func shouldDeferForNightPromise(msgs []storage.ConversationMessage, now time.Time) bool {
