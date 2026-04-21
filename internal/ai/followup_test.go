@@ -97,3 +97,21 @@ func TestSimpleFollowupMessage_HotLead(t *testing.T) {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
+
+func TestSimpleFollowupMessage_BuySignal(t *testing.T) {
+	lead := &storage.LeadRecord{BuySignal: true, LeadScore: 30}
+	got := simpleFollowupMessage(lead)
+	want := "Hola, ¿cómo estás? ¿Quieres que sigamos con la inscripción?"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestSimpleFollowupMessage_PriceAndScheduleAsked(t *testing.T) {
+	lead := &storage.LeadRecord{PriceAsked: true, ScheduleAsked: true}
+	got := simpleFollowupMessage(lead)
+	want := "Hola, ¿cómo estás? ¿Quieres que sigamos con la inscripción?"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}

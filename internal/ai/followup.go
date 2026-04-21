@@ -29,6 +29,7 @@ const (
 
 	// Local hour when "night" starts for promised responses.
 	followupNightStartHour = 18
+	followupHotLeadScore   = 61
 
 	// Message window for follow-up logic context.
 	followupLoadWindow   = 20
@@ -216,13 +217,16 @@ func (f *FollowUp) sendFollowUp(ctx context.Context, lead *storage.LeadRecord) e
 }
 
 func simpleFollowupMessage(lead *storage.LeadRecord) string {
-	if lead.BuySignal || lead.LeadScore >= 61 {
+	if lead.BuySignal || lead.LeadScore >= followupHotLeadScore {
 		return "Hola, ¿cómo estás? ¿Quieres que sigamos con la inscripción?"
 	}
-	if lead.PriceAsked && !lead.ScheduleAsked {
+	if lead.PriceAsked && lead.ScheduleAsked {
+		return "Hola, ¿cómo estás? ¿Quieres que sigamos con la inscripción?"
+	}
+	if lead.PriceAsked {
 		return "Hola, ¿cómo estás? ¿Quieres que sigamos con horarios o con inscripción?"
 	}
-	if lead.ScheduleAsked && !lead.PriceAsked {
+	if lead.ScheduleAsked {
 		return "Hola, ¿cómo estás? ¿Quieres que sigamos con precios o con inscripción?"
 	}
 	return "Hola, ¿cómo estás? ¿Quieres que sigamos con precios o horarios?"
@@ -309,7 +313,7 @@ func sameLocalDay(a, b time.Time) bool {
 }
 
 func followupStrategy(lead *storage.LeadRecord) string {
-	if lead.BuySignal || lead.LeadScore >= 61 {
+	if lead.BuySignal || lead.LeadScore >= followupHotLeadScore {
 		return "FOLLOWUP_HOT"
 	}
 	if lead.PriceAsked || lead.ScheduleAsked {
