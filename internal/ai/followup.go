@@ -18,12 +18,11 @@ const (
 
 	// Fixed follow-up schedule from the user's last inbound message.
 	followupAfter1 = 20 * time.Minute
-	followupAfter2 = 3 * time.Hour
-	followupAfter3 = 12 * time.Hour
-	followupAfter4 = 24 * time.Hour
+	followupAfter2 = 24 * time.Hour
+	followupAfter3 = 48 * time.Hour
 
-	// Max follow-up attempts per lead within one 24h window.
-	followupMaxAttempts = 4
+	// Max follow-up attempts per lead before stopping.
+	followupMaxAttempts = 3
 
 	// Max leads to process per cycle (don't blast everyone at once).
 	followupBatchSize = 5
@@ -107,7 +106,7 @@ func (f *FollowUp) runCycle(ctx context.Context) {
 		f.logger.Info("followup: auto-abandoned stale leads", zap.Int("count", n))
 	}
 
-	stale, err := f.leads.StaleLeads(dbCtx, followupAfter1, followupAfter2, followupAfter3, followupAfter4, followupBatchSize)
+	stale, err := f.leads.StaleLeads(dbCtx, followupAfter1, followupAfter2, followupAfter3, followupBatchSize)
 	if err != nil {
 		f.logger.Warn("followup: failed to fetch stale leads", zap.Error(err))
 		return
@@ -281,26 +280,16 @@ CONTEXTO:
 
 	case 1:
 		b.WriteString(`
-	TIPO: segundo follow-up (3 horas). Pasivo y útil.
+	TIPO: segundo follow-up (1 día). Pasivo y útil.
 	PLANTILLA OBLIGATORIA:
 	1) [Dato útil muy corto]
 	2) [Pregunta cerrada con dos rutas del flujo: precios/fechas, horarios/inscripción, etc.]
 	Formato ejemplo estructural: "Te dejo este dato rápido: [dato]. ¿Quieres que te pase [opción A] o [opción B]?"
 	- Máximo 2 oraciones`)
 
-	case 2:
-		b.WriteString(`
-	TIPO: tercer follow-up (12 horas). Reconducción al flujo.
-	PLANTILLA OBLIGATORIA:
-	1) [Validación breve y respetuosa]
-	2) [Pregunta cerrada para continuar por flujo de inscripción]
-	Formato ejemplo estructural: "Todo bien si estabas ocupado/a. ¿Seguimos con [opción A] o te comparto [opción B] para avanzar?"
-	- Si aplica, pregunta si le compartes el link de inscripción
-	- Máximo 2 oraciones`)
-
 	default:
 		b.WriteString(`
-	TIPO: cuarto follow-up (1 día). Último toque, muy respetuoso.
+	TIPO: tercer follow-up (2 días). Último toque, muy respetuoso.
 	PLANTILLA OBLIGATORIA:
 	1) [Cierre amable sin presión]
 	2) [Opción simple para retomar cuando quiera]
