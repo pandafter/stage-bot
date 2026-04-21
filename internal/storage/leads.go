@@ -173,11 +173,10 @@ func (r *LeadsRepo) ListByOutcome(ctx context.Context, outcome LeadOutcome, limi
 // StaleLeads returns open leads that are due for a follow-up according to the
 // minimum schedule from the last user message:
 //   - followup_count = 0 -> due at >= 20m
-//   - followup_count = 1 -> due at >= 3h
-//   - followup_count = 2 -> due at >= 12h
-//   - followup_count = 3 -> due at >= 24h
+//   - followup_count = 1 -> due at >= 24h
+//   - followup_count = 2 -> due at >= 48h
 // This avoids losing leads when a follow-up is intentionally deferred.
-func (r *LeadsRepo) StaleLeads(ctx context.Context, d1, d2, d3, d4 time.Duration, limit int) ([]*LeadRecord, error) {
+func (r *LeadsRepo) StaleLeads(ctx context.Context, d1, d2, d3 time.Duration, limit int) ([]*LeadRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, username, total_messages, lead_score, state, outcome,
 			price_asked, schedule_asked, buy_signal, objections,
@@ -192,15 +191,12 @@ func (r *LeadsRepo) StaleLeads(ctx context.Context, d1, d2, d3, d4 time.Duration
 			(followup_count = 1 AND last_seen <= NOW() - $2::interval)
 			OR
 			(followup_count = 2 AND last_seen <= NOW() - $3::interval)
-			OR
-			(followup_count = 3 AND last_seen <= NOW() - $4::interval)
 		  )
 		ORDER BY lead_score DESC, last_seen ASC
-		LIMIT $5`,
+		LIMIT $4`,
 		fmt.Sprintf("%d seconds", int(d1.Seconds())),
 		fmt.Sprintf("%d seconds", int(d2.Seconds())),
 		fmt.Sprintf("%d seconds", int(d3.Seconds())),
-		fmt.Sprintf("%d seconds", int(d4.Seconds())),
 		limit,
 	)
 	if err != nil {
@@ -255,7 +251,7 @@ func (r *LeadsRepo) AutoAbandon(ctx context.Context, idleThreshold time.Duration
 		WHERE outcome = 'open'
 		  AND total_messages >= 2
 		  AND last_seen < NOW() - $1::interval
-		  AND followup_count >= 4`,
+		  AND followup_count >= 3`,
 		fmt.Sprintf("%d seconds", int(idleThreshold.Seconds())),
 	)
 	if err != nil {
