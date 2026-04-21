@@ -6,6 +6,23 @@ import (
 	"github.com/kart-academy/instagram-bot/internal/domain"
 )
 
+// offTopicKeywords must stay unaccented because matching runs on normalizeForMatch output.
+var offTopicKeywords = []string{
+	"clima", "tiempo hoy", "presidente", "futbol", "partido",
+	"musica", "receta", "pelicula", "serie", "noticias",
+}
+
+// accentNormalizer receives already-lowercased input from normalizeForMatch,
+// so only lowercase accented runes are needed here.
+var accentNormalizer = strings.NewReplacer(
+	"á", "a",
+	"é", "e",
+	"í", "i",
+	"ó", "o",
+	"ú", "u",
+	"ü", "u",
+)
+
 // DetectIntent classifies a user message into a sales-relevant intent.
 // Uses keyword matching for speed — runs before Claude to select strategy.
 func DetectIntent(text string) domain.Intent {
@@ -89,8 +106,7 @@ func DetectIntent(text string) domain.Intent {
 	}
 
 	// Off-topic (outside sales flow/context)
-	if containsAny(lower, "clima", "tiempo hoy", "presidente", "fútbol", "futbol", "partido",
-		"música", "musica", "receta", "película", "pelicula", "serie", "noticias") {
+	if containsAny(normalizeForMatch(lower), offTopicKeywords...) {
 		return domain.IntentOffTopic
 	}
 
@@ -136,4 +152,8 @@ func containsAny(text string, keywords ...string) bool {
 		}
 	}
 	return false
+}
+
+func normalizeForMatch(s string) string {
+	return accentNormalizer.Replace(strings.ToLower(s))
 }
