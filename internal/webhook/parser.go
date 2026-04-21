@@ -1,5 +1,11 @@
 package webhook
 
+import "strings"
+
+// punctuationToTrim defines boundary punctuation stripped from tokens before keyword checks,
+// so matches still work for inputs like "piloto!" or "¿piloto?".
+const punctuationToTrim = ".,;:!?¡¿\"'()[]{}"
+
 // ParseMessages extracts internal IncomingMessage structs from a webhook payload.
 // It filters out echo messages, read receipts, and other non-message events.
 func ParseMessages(payload *WebhookPayload) []IncomingMessage {
@@ -49,4 +55,65 @@ func ParseMessages(payload *WebhookPayload) []IncomingMessage {
 	}
 
 	return messages
+}
+
+func HasCommentChanges(payload *WebhookPayload) bool {
+	for _, entry := range payload.Entry {
+		for _, change := range entry.Changes {
+			if change.Field == "comments" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func ParseCommentTriggers(payload *WebhookPayload, latestMediaID string, keyword string) []IncomingMessage {
+	var messages []IncomingMessage
+	if latestMediaID == "" || strings.TrimSpace(keyword) == "" {
+		return messages
+	}
+
+	keyword = strings.ToLower(strings.TrimSpace(keyword))
+
+	for _, entry := range payload.Entry {
+		for _, change := range entry.Changes {
+			if change.Field != "comments" {
+				continue
+			}
+			if change.Value.Media.ID == "" || change.Value.Media.ID != latestMediaID {
+				continue
+			}
+			text := strings.TrimSpace(change.Value.Text)
+			if text == "" {
+				continue
+			}
+			if !containsWord(text, keyword) {
+				continue
+			}
+
+			msg := IncomingMessage{
+				SenderID:    change.Value.From.ID,
+				RecipientID: entry.ID,
+				MessageID:   change.Value.ID,
+				Timestamp:   entry.Time,
+				Type:        MessageTypeText,
+				Text:        change.Value.Text,
+			}
+
+			messages = append(messages, msg)
+		}
+	}
+
+	return messages
+}
+
+func containsWord(text, word string) bool {
+	for _, token := range strings.Fields(strings.ToLower(text)) {
+		normalized := strings.Trim(token, punctuationToTrim)
+		if normalized == word {
+			return true
+		}
+	}
+	return false
 }

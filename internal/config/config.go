@@ -42,6 +42,8 @@ type Config struct {
 
 	// Testing — only respond to this sender in development
 	TestSenderID string
+	// Trigger keyword for comment-to-DM sales flow
+	CommentTriggerKeyword string
 
 	// Admin panel auth token
 	AdminToken string
@@ -74,6 +76,7 @@ func Load() (*Config, error) {
 		PublicURL:           getEnv("PUBLIC_URL", ""),
 		DatabaseURL:        getEnv("DATABASE_URL", ""),
 		TestSenderID:       getEnv("TEST_SENDER_ID", ""),
+		CommentTriggerKeyword: getEnv("COMMENT_TRIGGER_KEYWORD", "piloto"),
 		AdminToken:         getEnv("ADMIN_TOKEN", ""),
 		WorkerConcurrency:  getIntEnv("WORKER_CONCURRENCY", 5),
 		WorkerMaxAttempts:  getIntEnv("WORKER_MAX_ATTEMPTS", 3),

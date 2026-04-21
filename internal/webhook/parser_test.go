@@ -201,3 +201,78 @@ func TestParseMessages_UnknownAttachmentType(t *testing.T) {
 		t.Errorf("Type = %s, want %s", msgs[0].Type, MessageTypeUnknown)
 	}
 }
+
+func TestHasCommentChanges(t *testing.T) {
+	payload := &WebhookPayload{
+		Entry: []Entry{{
+			Changes: []Change{{Field: "comments"}},
+		}},
+	}
+
+	if !HasCommentChanges(payload) {
+		t.Fatal("expected HasCommentChanges to return true")
+	}
+}
+
+func TestParseCommentTriggers_MatchesLatestMediaAndKeyword(t *testing.T) {
+	payload := &WebhookPayload{
+		Entry: []Entry{{
+			ID:   "ig_business",
+			Time: 1700000000,
+			Changes: []Change{{
+				Field: "comments",
+				Value: ChangeValue{
+					ID:   "comment.1",
+					Text: "Quiero ser piloto",
+					From: Participant{ID: "user123"},
+					Media: Media{
+						ID: "media.latest",
+					},
+				},
+			}},
+		}},
+	}
+
+	msgs := ParseCommentTriggers(payload, "media.latest", "piloto")
+	if len(msgs) != 1 {
+		t.Fatalf("got %d messages, want 1", len(msgs))
+	}
+	if msgs[0].SenderID != "user123" {
+		t.Errorf("SenderID = %s, want user123", msgs[0].SenderID)
+	}
+	if msgs[0].Text != "Quiero ser piloto" {
+		t.Errorf("Text = %q, want original comment text", msgs[0].Text)
+	}
+}
+
+func TestParseCommentTriggers_SkipsWrongMediaOrKeyword(t *testing.T) {
+	payload := &WebhookPayload{
+		Entry: []Entry{{
+			Changes: []Change{
+				{
+					Field: "comments",
+					Value: ChangeValue{
+						ID:    "comment.1",
+						Text:  "quiero info",
+						From:  Participant{ID: "user1"},
+						Media: Media{ID: "media.latest"},
+					},
+				},
+				{
+					Field: "comments",
+					Value: ChangeValue{
+						ID:    "comment.2",
+						Text:  "piloto",
+						From:  Participant{ID: "user2"},
+						Media: Media{ID: "media.old"},
+					},
+				},
+			},
+		}},
+	}
+
+	msgs := ParseCommentTriggers(payload, "media.latest", "piloto")
+	if len(msgs) != 0 {
+		t.Fatalf("got %d messages, want 0", len(msgs))
+	}
+}

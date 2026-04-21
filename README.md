@@ -122,6 +122,7 @@ instagram-bot/
 | `PUBLIC_URL` | No | Public URL for audio file serving (ngrok URL in dev) |
 | `DATABASE_URL` | No | SQLite database path (default: data/bot.db) |
 | `TEST_SENDER_ID` | No | Only respond to this user in development |
+| `COMMENT_TRIGGER_KEYWORD` | No | Keyword in latest post comments that triggers DM sales flow (default: `piloto`) |
 
 ### Local Development
 
