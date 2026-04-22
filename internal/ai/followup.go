@@ -378,7 +378,7 @@ func promisedDayFollowupPlan(msgs []storage.ConversationMessage, now time.Time) 
 
 	nowLocal := now.In(followupLocalTZ)
 	msgLocal := lastUser.CreatedAt.In(followupLocalTZ)
-	targetDay := nextOrSameWeekdayStart(msgLocal, targetWeekday)
+	targetDay := targetWeekdayStartFrom(msgLocal, targetWeekday)
 
 	if nowLocal.Before(targetDay) {
 		return followupMessagePlan{deferSend: true}
@@ -395,10 +395,10 @@ func detectPromisedWeekday(content string) (time.Weekday, bool) {
 			return item.weekday, true
 		}
 	}
-	return time.Sunday, false
+	return time.Weekday(-1), false
 }
 
-func nextOrSameWeekdayStart(base time.Time, target time.Weekday) time.Time {
+func targetWeekdayStartFrom(base time.Time, target time.Weekday) time.Time {
 	baseLocal := base.In(followupLocalTZ)
 	daysUntil := (int(target) - int(baseLocal.Weekday()) + 7) % 7
 	// Intentionally keeps same-day (daysUntil=0) so "escríbeme el <día>" can trigger on that same day.
