@@ -32,9 +32,9 @@ const (
 	followupHotLeadScore   = 61
 
 	// Message window for follow-up logic context.
-	followupLoadWindow    = 20
-	followupContextLimit  = 6
-	fridayFollowupMessage = "Hola, ¿cómo estás?"
+	followupLoadWindow       = 20
+	followupContextLimit     = 6
+	promisedDayFollowupReply = "Hola, ¿cómo estás?"
 )
 
 var followupLocalTZ = func() *time.Location {
@@ -58,6 +58,19 @@ type FollowUp struct {
 type followupMessagePlan struct {
 	deferSend bool
 	forceText string
+}
+
+var promisedWeekdayKeywords = []struct {
+	keyword string
+	weekday time.Weekday
+}{
+	{keyword: "lunes", weekday: time.Monday},
+	{keyword: "martes", weekday: time.Tuesday},
+	{keyword: "miercoles", weekday: time.Wednesday},
+	{keyword: "jueves", weekday: time.Thursday},
+	{keyword: "viernes", weekday: time.Friday},
+	{keyword: "sabado", weekday: time.Saturday},
+	{keyword: "domingo", weekday: time.Sunday},
 }
 
 func NewFollowUp(
@@ -172,8 +185,8 @@ func (f *FollowUp) sendFollowUp(ctx context.Context, lead *storage.LeadRecord) e
 	}
 
 	text := simpleFollowupMessage(lead)
-	if plan := fridayFollowupPlan(msgs, now); plan.deferSend {
-		f.logger.Info("followup: deferred due to friday promise",
+	if plan := promisedDayFollowupPlan(msgs, now); plan.deferSend {
+		f.logger.Info("followup: deferred due to promised day",
 			zap.String("lead", lead.ID),
 		)
 		return nil
@@ -338,14 +351,15 @@ func followupStrategy(lead *storage.LeadRecord) string {
 	return "FOLLOWUP_MILD"
 }
 
-func fridayFollowupPlan(msgs []storage.ConversationMessage, now time.Time) followupMessagePlan {
+func promisedDayFollowupPlan(msgs []storage.ConversationMessage, now time.Time) followupMessagePlan {
 	lastUser, ok := lastUserMessage(msgs)
 	if !ok {
 		return followupMessagePlan{}
 	}
 
 	content := normalizeFollowupText(lastUser.Content)
-	if !containsAnyFollowup(content, "viernes") {
+	targetWeekday, hasWeekday := detectPromisedWeekday(content)
+	if !hasWeekday {
 		return followupMessagePlan{}
 	}
 
@@ -362,15 +376,24 @@ func fridayFollowupPlan(msgs []storage.ConversationMessage, now time.Time) follo
 
 	nowLocal := now.In(followupLocalTZ)
 	msgLocal := lastUser.CreatedAt.In(followupLocalTZ)
-	targetFriday := nextOrSameWeekdayStart(msgLocal, time.Friday)
+	targetDay := nextOrSameWeekdayStart(msgLocal, targetWeekday)
 
-	if nowLocal.Before(targetFriday) {
+	if nowLocal.Before(targetDay) {
 		return followupMessagePlan{deferSend: true}
 	}
-	if sameLocalDay(nowLocal, targetFriday) {
-		return followupMessagePlan{forceText: fridayFollowupMessage}
+	if sameLocalDay(nowLocal, targetDay) {
+		return followupMessagePlan{forceText: promisedDayFollowupReply}
 	}
 	return followupMessagePlan{}
+}
+
+func detectPromisedWeekday(content string) (time.Weekday, bool) {
+	for _, item := range promisedWeekdayKeywords {
+		if strings.Contains(content, item.keyword) {
+			return item.weekday, true
+		}
+	}
+	return time.Sunday, false
 }
 
 func nextOrSameWeekdayStart(base time.Time, target time.Weekday) time.Time {
