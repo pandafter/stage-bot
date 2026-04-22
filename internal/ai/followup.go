@@ -60,17 +60,20 @@ type followupMessagePlan struct {
 	forceText string
 }
 
-var promisedWeekdayKeywords = []struct {
-	keyword string
-	weekday time.Weekday
-}{
-	{keyword: "lunes", weekday: time.Monday},
-	{keyword: "martes", weekday: time.Tuesday},
-	{keyword: "miércoles", weekday: time.Wednesday},
-	{keyword: "jueves", weekday: time.Thursday},
-	{keyword: "viernes", weekday: time.Friday},
-	{keyword: "sábado", weekday: time.Saturday},
-	{keyword: "domingo", weekday: time.Sunday},
+type weekdayMapping struct {
+	keyword           string
+	normalizedKeyword string
+	weekday           time.Weekday
+}
+
+var promisedWeekdayKeywords = []weekdayMapping{
+	{keyword: "lunes", normalizedKeyword: "lunes", weekday: time.Monday},
+	{keyword: "martes", normalizedKeyword: "martes", weekday: time.Tuesday},
+	{keyword: "miércoles", normalizedKeyword: "miercoles", weekday: time.Wednesday},
+	{keyword: "jueves", normalizedKeyword: "jueves", weekday: time.Thursday},
+	{keyword: "viernes", normalizedKeyword: "viernes", weekday: time.Friday},
+	{keyword: "sábado", normalizedKeyword: "sabado", weekday: time.Saturday},
+	{keyword: "domingo", normalizedKeyword: "domingo", weekday: time.Sunday},
 }
 
 func NewFollowUp(
@@ -389,7 +392,7 @@ func promisedDayFollowupPlan(msgs []storage.ConversationMessage, now time.Time) 
 
 func detectPromisedWeekday(content string) (time.Weekday, bool) {
 	for _, item := range promisedWeekdayKeywords {
-		if strings.Contains(content, normalizeFollowupText(item.keyword)) {
+		if strings.Contains(content, item.normalizedKeyword) {
 			return item.weekday, true
 		}
 	}
