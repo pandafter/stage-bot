@@ -35,6 +35,7 @@ const (
 	followupLoadWindow       = 20
 	followupContextLimit     = 6
 	promisedDayFollowupReply = "Hola, ¿cómo estás?"
+	invalidWeekday           = time.Weekday(7)
 )
 
 var followupLocalTZ = func() *time.Location {
@@ -395,13 +396,14 @@ func detectPromisedWeekday(content string) (time.Weekday, bool) {
 			return item.weekday, true
 		}
 	}
-	return time.Weekday(-1), false
+	return invalidWeekday, false
 }
 
 func targetWeekdayStartFrom(base time.Time, target time.Weekday) time.Time {
 	baseLocal := base.In(followupLocalTZ)
 	daysUntil := (int(target) - int(baseLocal.Weekday()) + 7) % 7
 	// Intentionally keeps same-day (daysUntil=0) so "escríbeme el <día>" can trigger on that same day.
+	// If target weekday already passed in the current week, modulo wrap targets the following week's occurrence.
 	start := time.Date(baseLocal.Year(), baseLocal.Month(), baseLocal.Day(), 0, 0, 0, 0, followupLocalTZ)
 	return start.AddDate(0, 0, daysUntil)
 }
