@@ -61,6 +61,91 @@ func TestShouldNotDeferWithoutNightPromise(t *testing.T) {
 	}
 }
 
+func TestFridayFollowupPlan_DefersBeforeFriday(t *testing.T) {
+	loc := followupLocalTZ
+	msgTime := time.Date(2026, 4, 22, 11, 0, 0, 0, loc) // Wednesday
+	now := time.Date(2026, 4, 23, 15, 0, 0, 0, loc)     // Thursday
+
+	msgs := []storage.ConversationMessage{
+		{
+			Role:      storage.RoleUser,
+			Content:   "Listo, escríbeme el viernes",
+			CreatedAt: msgTime,
+		},
+	}
+
+	plan := fridayFollowupPlan(msgs, now)
+	if !plan.deferSend {
+		t.Fatal("expected friday followup to defer before friday")
+	}
+	if plan.forceText != "" {
+		t.Fatalf("expected no forced text before friday, got %q", plan.forceText)
+	}
+}
+
+func TestFridayFollowupPlan_UsesFridayMessageOnFriday(t *testing.T) {
+	loc := followupLocalTZ
+	msgTime := time.Date(2026, 4, 22, 11, 0, 0, 0, loc) // Wednesday
+	now := time.Date(2026, 4, 24, 10, 0, 0, 0, loc)     // Friday
+
+	msgs := []storage.ConversationMessage{
+		{
+			Role:      storage.RoleUser,
+			Content:   "Háblame el viernes porfa",
+			CreatedAt: msgTime,
+		},
+	}
+
+	plan := fridayFollowupPlan(msgs, now)
+	if plan.deferSend {
+		t.Fatal("expected no friday deferral on friday")
+	}
+	if plan.forceText != fridayFollowupMessage {
+		t.Fatalf("expected forced friday followup %q, got %q", fridayFollowupMessage, plan.forceText)
+	}
+}
+
+func TestFridayFollowupPlan_DoesNotForceAfterFriday(t *testing.T) {
+	loc := followupLocalTZ
+	msgTime := time.Date(2026, 4, 22, 11, 0, 0, 0, loc) // Wednesday
+	now := time.Date(2026, 4, 25, 10, 0, 0, 0, loc)     // Saturday
+
+	msgs := []storage.ConversationMessage{
+		{
+			Role:      storage.RoleUser,
+			Content:   "Me escribes el viernes",
+			CreatedAt: msgTime,
+		},
+	}
+
+	plan := fridayFollowupPlan(msgs, now)
+	if plan.deferSend {
+		t.Fatal("expected no friday deferral after friday")
+	}
+	if plan.forceText != "" {
+		t.Fatalf("expected no forced friday text after friday, got %q", plan.forceText)
+	}
+}
+
+func TestFridayFollowupPlan_IgnoresFridayWithoutFollowupVerb(t *testing.T) {
+	loc := followupLocalTZ
+	msgTime := time.Date(2026, 4, 22, 11, 0, 0, 0, loc)
+	now := time.Date(2026, 4, 23, 10, 0, 0, 0, loc)
+
+	msgs := []storage.ConversationMessage{
+		{
+			Role:      storage.RoleUser,
+			Content:   "Tengo libre el viernes",
+			CreatedAt: msgTime,
+		},
+	}
+
+	plan := fridayFollowupPlan(msgs, now)
+	if plan.deferSend || plan.forceText != "" {
+		t.Fatal("expected no friday followup plan when friday is mentioned without followup intent")
+	}
+}
+
 func TestDropPastFollowupResponses(t *testing.T) {
 	msgs := []storage.ConversationMessage{
 		{Role: storage.RoleUser, Content: "hola", Intent: "GREETING"},
