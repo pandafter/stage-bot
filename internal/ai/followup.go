@@ -32,8 +32,10 @@ const (
 	followupHotLeadScore   = 61
 
 	// Message window for follow-up logic context.
-	followupLoadWindow   = 20
-	followupContextLimit = 6
+	followupLoadWindow       = 20
+	followupContextLimit     = 6
+	promisedDayFollowupReply = "Hola, ¿cómo estás?"
+	invalidWeekday           = time.Weekday(7)
 )
 
 var followupLocalTZ = func() *time.Location {
@@ -52,6 +54,26 @@ type FollowUp struct {
 	leads     *storage.LeadsRepo
 	conv      *storage.ConversationRepo
 	logger    *zap.Logger
+}
+
+type followupMessagePlan struct {
+	deferSend bool
+	forceText string
+}
+
+type weekdayMapping struct {
+	normalizedKeyword string
+	weekday           time.Weekday
+}
+
+var promisedWeekdayKeywords = []weekdayMapping{
+	{normalizedKeyword: "lunes", weekday: time.Monday},
+	{normalizedKeyword: "martes", weekday: time.Tuesday},
+	{normalizedKeyword: "miercoles", weekday: time.Wednesday},
+	{normalizedKeyword: "jueves", weekday: time.Thursday},
+	{normalizedKeyword: "viernes", weekday: time.Friday},
+	{normalizedKeyword: "sabado", weekday: time.Saturday},
+	{normalizedKeyword: "domingo", weekday: time.Sunday},
 }
 
 func NewFollowUp(
@@ -156,7 +178,9 @@ func (f *FollowUp) sendFollowUp(ctx context.Context, lead *storage.LeadRecord) e
 		msgs = msgs[len(msgs)-followupContextLimit:]
 	}
 
-	if shouldDeferForNightPromise(msgs, time.Now()) {
+	now := time.Now()
+
+	if shouldDeferForNightPromise(msgs, now) {
 		f.logger.Info("followup: deferred due to night promise",
 			zap.String("lead", lead.ID),
 		)
@@ -164,6 +188,14 @@ func (f *FollowUp) sendFollowUp(ctx context.Context, lead *storage.LeadRecord) e
 	}
 
 	text := simpleFollowupMessage(lead)
+	if plan := promisedDayFollowupPlan(msgs, now); plan.deferSend {
+		f.logger.Info("followup: deferred due to promised day",
+			zap.String("lead", lead.ID),
+		)
+		return nil
+	} else if plan.forceText != "" {
+		text = plan.forceText
+	}
 
 	// Send it
 	if err := f.messenger.SetTypingOn(lead.ID); err != nil {
@@ -320,6 +352,60 @@ func followupStrategy(lead *storage.LeadRecord) string {
 		return "FOLLOWUP_WARM"
 	}
 	return "FOLLOWUP_MILD"
+}
+
+func promisedDayFollowupPlan(msgs []storage.ConversationMessage, now time.Time) followupMessagePlan {
+	lastUser, ok := lastUserMessage(msgs)
+	if !ok {
+		return followupMessagePlan{}
+	}
+
+	content := normalizeFollowupText(lastUser.Content)
+	targetWeekday, hasWeekday := detectPromisedWeekday(content)
+	if !hasWeekday {
+		return followupMessagePlan{}
+	}
+
+	if !containsAnyFollowup(content,
+		"escrib",
+		"habl",
+		"contact",
+		"aviso",
+		"confirmo",
+		"respondo",
+	) {
+		return followupMessagePlan{}
+	}
+
+	nowLocal := now.In(followupLocalTZ)
+	msgLocal := lastUser.CreatedAt.In(followupLocalTZ)
+	targetDay := targetWeekdayStartFrom(msgLocal, targetWeekday)
+
+	if nowLocal.Before(targetDay) {
+		return followupMessagePlan{deferSend: true}
+	}
+	if sameLocalDay(nowLocal, targetDay) {
+		return followupMessagePlan{forceText: promisedDayFollowupReply}
+	}
+	return followupMessagePlan{}
+}
+
+func detectPromisedWeekday(content string) (time.Weekday, bool) {
+	for _, item := range promisedWeekdayKeywords {
+		if strings.Contains(content, item.normalizedKeyword) {
+			return item.weekday, true
+		}
+	}
+	return invalidWeekday, false
+}
+
+func targetWeekdayStartFrom(base time.Time, target time.Weekday) time.Time {
+	baseLocal := base.In(followupLocalTZ)
+	daysUntil := (int(target) - int(baseLocal.Weekday()) + 7) % 7
+	// Intentionally keeps same-day (daysUntil=0) so "escríbeme el <día>" can trigger on that same day.
+	// If target weekday already passed in the current week, modulo wrap targets the following week's occurrence.
+	start := time.Date(baseLocal.Year(), baseLocal.Month(), baseLocal.Day(), 0, 0, 0, 0, followupLocalTZ)
+	return start.AddDate(0, 0, daysUntil)
 }
 
 func dropPastFollowupResponses(msgs []storage.ConversationMessage) []storage.ConversationMessage {
