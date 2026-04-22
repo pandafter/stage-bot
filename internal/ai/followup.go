@@ -66,10 +66,10 @@ var promisedWeekdayKeywords = []struct {
 }{
 	{keyword: "lunes", weekday: time.Monday},
 	{keyword: "martes", weekday: time.Tuesday},
-	{keyword: "miercoles", weekday: time.Wednesday},
+	{keyword: "miércoles", weekday: time.Wednesday},
 	{keyword: "jueves", weekday: time.Thursday},
 	{keyword: "viernes", weekday: time.Friday},
-	{keyword: "sabado", weekday: time.Saturday},
+	{keyword: "sábado", weekday: time.Saturday},
 	{keyword: "domingo", weekday: time.Sunday},
 }
 
@@ -389,7 +389,7 @@ func promisedDayFollowupPlan(msgs []storage.ConversationMessage, now time.Time) 
 
 func detectPromisedWeekday(content string) (time.Weekday, bool) {
 	for _, item := range promisedWeekdayKeywords {
-		if strings.Contains(content, item.keyword) {
+		if strings.Contains(content, normalizeFollowupText(item.keyword)) {
 			return item.weekday, true
 		}
 	}
