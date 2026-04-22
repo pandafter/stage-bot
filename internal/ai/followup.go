@@ -61,19 +61,18 @@ type followupMessagePlan struct {
 }
 
 type weekdayMapping struct {
-	keyword           string
 	normalizedKeyword string
 	weekday           time.Weekday
 }
 
 var promisedWeekdayKeywords = []weekdayMapping{
-	{keyword: "lunes", normalizedKeyword: "lunes", weekday: time.Monday},
-	{keyword: "martes", normalizedKeyword: "martes", weekday: time.Tuesday},
-	{keyword: "miércoles", normalizedKeyword: "miercoles", weekday: time.Wednesday},
-	{keyword: "jueves", normalizedKeyword: "jueves", weekday: time.Thursday},
-	{keyword: "viernes", normalizedKeyword: "viernes", weekday: time.Friday},
-	{keyword: "sábado", normalizedKeyword: "sabado", weekday: time.Saturday},
-	{keyword: "domingo", normalizedKeyword: "domingo", weekday: time.Sunday},
+	{normalizedKeyword: "lunes", weekday: time.Monday},
+	{normalizedKeyword: "martes", weekday: time.Tuesday},
+	{normalizedKeyword: "miercoles", weekday: time.Wednesday},
+	{normalizedKeyword: "jueves", weekday: time.Thursday},
+	{normalizedKeyword: "viernes", weekday: time.Friday},
+	{normalizedKeyword: "sabado", weekday: time.Saturday},
+	{normalizedKeyword: "domingo", weekday: time.Sunday},
 }
 
 func NewFollowUp(
@@ -402,6 +401,7 @@ func detectPromisedWeekday(content string) (time.Weekday, bool) {
 func nextOrSameWeekdayStart(base time.Time, target time.Weekday) time.Time {
 	baseLocal := base.In(followupLocalTZ)
 	daysUntil := (int(target) - int(baseLocal.Weekday()) + 7) % 7
+	// Intentionally keeps same-day (daysUntil=0) so "escríbeme el <día>" can trigger on that same day.
 	start := time.Date(baseLocal.Year(), baseLocal.Month(), baseLocal.Day(), 0, 0, 0, 0, followupLocalTZ)
 	return start.AddDate(0, 0, daysUntil)
 }
