@@ -32,8 +32,8 @@ const (
 	followupHotLeadScore   = 61
 
 	// Message window for follow-up logic context.
-	followupLoadWindow   = 20
-	followupContextLimit = 6
+	followupLoadWindow    = 20
+	followupContextLimit  = 6
 	fridayFollowupMessage = "Hola, ¿cómo estás?"
 )
 
