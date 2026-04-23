@@ -17,9 +17,9 @@ const (
 	followupCheckInterval = 5 * time.Minute
 
 	// Fixed follow-up schedule from the user's last inbound message.
-	followupAfter1 = 20 * time.Minute
+	followupAfter1 = 6 * time.Hour
 	followupAfter2 = 24 * time.Hour
-	followupAfter3 = 48 * time.Hour
+	followupAfter3 = 120 * time.Hour
 
 	// Max follow-up attempts per lead before stopping.
 	followupMaxAttempts = 3
@@ -187,7 +187,7 @@ func (f *FollowUp) sendFollowUp(ctx context.Context, lead *storage.LeadRecord) e
 		return nil
 	}
 
-	text := simpleFollowupMessage(lead)
+	text := f.brain.FollowUpMessage(lead.FollowupCount+1, lead)
 	if plan := promisedDayFollowupPlan(msgs, now); plan.deferSend {
 		f.logger.Info("followup: deferred due to promised day",
 			zap.String("lead", lead.ID),
@@ -248,20 +248,15 @@ func (f *FollowUp) sendFollowUp(ctx context.Context, lead *storage.LeadRecord) e
 	return nil
 }
 
-func simpleFollowupMessage(lead *storage.LeadRecord) string {
-	if lead.BuySignal || lead.LeadScore >= followupHotLeadScore {
-		return "Hola, ¿cómo estás? ¿Quieres que sigamos con la inscripción?"
+func simpleFollowupMessage(attempt int, lead *storage.LeadRecord) string {
+	switch attempt {
+	case 1:
+		return "Hola, te escribimos para hacer seguimiento. ¿Te compartimos el número del director para continuar? Responde Sí o No."
+	case 2:
+		return "Seguimos atentos. Si quieres continuar con la venta, responde Sí y te pasamos el número del director."
+	default:
+		return "Último mensaje de seguimiento: si quieres continuar, responde Sí y te pasamos el número del director."
 	}
-	if lead.PriceAsked && lead.ScheduleAsked {
-		return "Hola, ¿cómo estás? ¿Quieres que sigamos con la inscripción?"
-	}
-	if lead.PriceAsked {
-		return "Hola, ¿cómo estás? ¿Quieres que sigamos con horarios o con inscripción?"
-	}
-	if lead.ScheduleAsked {
-		return "Hola, ¿cómo estás? ¿Quieres que sigamos con precios o con inscripción?"
-	}
-	return "Hola, ¿cómo estás? ¿Quieres que sigamos con precios o horarios?"
 }
 
 func shouldDeferForNightPromise(msgs []storage.ConversationMessage, now time.Time) bool {

@@ -29,6 +29,17 @@ type Brain struct {
 	logger       *zap.Logger
 }
 
+type scriptedKnowledge interface {
+	PrimaryMessages() []string
+	DirectorContactMessage() string
+	FollowUpMessage(attempt int) string
+}
+
+type scriptedDecision struct {
+	reply           string
+	assistantIntent string
+}
+
 func New(
 	apiKey string,
 	ks domain.KnowledgeBase,
@@ -81,41 +92,32 @@ func (b *Brain) Process(senderID, text string) (string, error) {
 		zap.String("strategy", string(strategy)),
 	)
 
-	history, err := b.loadHistory(ctx, senderID)
+	msgs, err := b.loadHistory(ctx, senderID)
 	if err != nil {
 		b.logger.Warn("history load failed, continuing without", zap.Error(err))
 	}
-	history = append(history, ClaudeMessage{Role: "user", Content: text})
-
-	systemPrompt := b.buildSystemPrompt(strategy, intent, rec)
-	chat, err := b.claude.Chat(systemPrompt, history)
-	if err != nil {
-		b.logger.Warn("claude unavailable, using fallback", zap.Error(err))
-		chat = ChatResult{Text: b.fallback(text)}
+	decision := b.scriptedReply(msgs, text)
+	if decision.reply == "" {
+		b.logger.Info("scripted flow: no reply for non yes/no input",
+			zap.String("sender", senderID),
+		)
 	}
 
-	b.persist(ctx, senderID, text, chat, intent, strategy, scoreDelta, rec)
-	return chat.Text, nil
+	chat := ChatResult{Text: decision.reply}
+	b.persist(ctx, senderID, text, chat, intent, strategy, scoreDelta, rec, decision.assistantIntent)
+	return decision.reply, nil
 }
 
-// loadHistory pulls the last N messages from DB and formats them for Claude.
-func (b *Brain) loadHistory(ctx context.Context, senderID string) ([]ClaudeMessage, error) {
+// loadHistory pulls the last N messages from DB.
+func (b *Brain) loadHistory(ctx context.Context, senderID string) ([]storage.ConversationMessage, error) {
 	dbCtx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
 
-	msgs, err := b.conversation.LastN(dbCtx, senderID, historyWindow)
+	history, err := b.conversation.LastN(dbCtx, senderID, historyWindow)
 	if err != nil {
 		return nil, err
 	}
-
-	out := make([]ClaudeMessage, 0, len(msgs))
-	for _, m := range msgs {
-		out = append(out, ClaudeMessage{
-			Role:    string(m.Role),
-			Content: m.Content,
-		})
-	}
-	return out, nil
+	return history, nil
 }
 
 // persist writes the user and assistant messages plus updated lead state.
@@ -128,6 +130,7 @@ func (b *Brain) persist(
 	strategy domain.Strategy,
 	scoreDelta int,
 	rec *storage.LeadRecord,
+	assistantIntent string,
 ) {
 	dbCtx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
@@ -146,25 +149,143 @@ func (b *Brain) persist(
 		b.logger.Error("persist user message", zap.Error(err))
 	}
 
-	assistantMsg := storage.ConversationMessage{
-		LeadID:      senderID,
-		Role:        storage.RoleAssistant,
-		Content:     chat.Text,
-		ContentType: "text",
-		Intent:      string(intent),
-		Strategy:    string(strategy),
-		ScoreAfter:  rec.LeadScore,
-		TokensIn:    chat.InputTokens,
-		TokensOut:   chat.OutputTokens,
-		Model:       chat.Model,
-	}
-	if err := b.conversation.Append(dbCtx, assistantMsg); err != nil {
-		b.logger.Error("persist assistant message", zap.Error(err))
+	if strings.TrimSpace(chat.Text) != "" {
+		if assistantIntent == "" {
+			assistantIntent = string(intent)
+		}
+		assistantMsg := storage.ConversationMessage{
+			LeadID:      senderID,
+			Role:        storage.RoleAssistant,
+			Content:     chat.Text,
+			ContentType: "text",
+			Intent:      assistantIntent,
+			Strategy:    string(strategy),
+			ScoreAfter:  rec.LeadScore,
+			TokensIn:    chat.InputTokens,
+			TokensOut:   chat.OutputTokens,
+			Model:       chat.Model,
+		}
+		if err := b.conversation.Append(dbCtx, assistantMsg); err != nil {
+			b.logger.Error("persist assistant message", zap.Error(err))
+		}
 	}
 
 	if err := b.leads.UpdateScore(dbCtx, rec); err != nil {
 		b.logger.Error("persist lead score", zap.Error(err))
 	}
+}
+
+func (b *Brain) scriptedReply(history []storage.ConversationMessage, text string) scriptedDecision {
+	provider, _ := b.knowledge.(scriptedKnowledge)
+	primaryText := b.primaryMessage(provider)
+	directorText := b.directorMessage(provider)
+
+	if primaryText == "" {
+		primaryText = "Hola. ¿Quieres que te pase el número del director para continuar? Responde solo Sí o No."
+	}
+
+	hasPrimary := false
+	hasDirector := false
+	for _, msg := range history {
+		if msg.Role != storage.RoleAssistant {
+			continue
+		}
+		switch strings.ToUpper(strings.TrimSpace(msg.Intent)) {
+		case "SCRIPT_PRIMARY":
+			hasPrimary = true
+		case "SCRIPT_DIRECTOR":
+			hasDirector = true
+		}
+	}
+
+	if asksKartSale(text) && directorText != "" {
+		return scriptedDecision{reply: directorText, assistantIntent: "SCRIPT_DIRECTOR"}
+	}
+
+	if !hasPrimary {
+		return scriptedDecision{reply: primaryText, assistantIntent: "SCRIPT_PRIMARY"}
+	}
+
+	if hasDirector {
+		return scriptedDecision{}
+	}
+
+	switch classifyYesNo(text) {
+	case "yes":
+		if directorText == "" {
+			return scriptedDecision{}
+		}
+		return scriptedDecision{reply: directorText, assistantIntent: "SCRIPT_DIRECTOR"}
+	case "no":
+		return scriptedDecision{}
+	default:
+		return scriptedDecision{}
+	}
+}
+
+func (b *Brain) primaryMessage(provider scriptedKnowledge) string {
+	if provider == nil {
+		return ""
+	}
+	parts := provider.PrimaryMessages()
+	if len(parts) == 0 {
+		return ""
+	}
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return strings.Join(out, "\n\n")
+}
+
+func (b *Brain) directorMessage(provider scriptedKnowledge) string {
+	if provider == nil {
+		return ""
+	}
+	return strings.TrimSpace(provider.DirectorContactMessage())
+}
+
+func (b *Brain) FollowUpMessage(attempt int, lead *storage.LeadRecord) string {
+	if provider, ok := b.knowledge.(scriptedKnowledge); ok {
+		if msg := strings.TrimSpace(provider.FollowUpMessage(attempt)); msg != "" {
+			return msg
+		}
+	}
+	return simpleFollowupMessage(attempt, lead)
+}
+
+func classifyYesNo(text string) string {
+	normalized := normalizeForMatch(text)
+	normalized = strings.TrimSpace(normalized)
+	normalized = strings.Trim(normalized, ".,!?¡¿;:")
+	if normalized == "" {
+		return ""
+	}
+
+	yesWords := map[string]struct{}{
+		"si": {}, "ok": {}, "dale": {}, "claro": {}, "de una": {}, "yes": {},
+	}
+	noWords := map[string]struct{}{
+		"no": {}, "nop": {}, "negativo": {},
+	}
+	if _, ok := yesWords[normalized]; ok {
+		return "yes"
+	}
+	if _, ok := noWords[normalized]; ok {
+		return "no"
+	}
+	return ""
+}
+
+func asksKartSale(text string) bool {
+	n := normalizeForMatch(text)
+	if !strings.Contains(n, "kart") {
+		return false
+	}
+	return containsAny(n, "venta", "comprar", "compro", "venden", "precio", "cuanto", "cuesta")
 }
 
 // buildSystemPrompt creates the full prompt with knowledge, strategy, lead profile,
