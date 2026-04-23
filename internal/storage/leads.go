@@ -187,6 +187,20 @@ func (r *LeadsRepo) StaleLeads(ctx context.Context, d1, d2, d3 time.Duration, li
 		WHERE outcome = 'open'
 		  AND total_messages >= 1
 		  AND buy_signal = FALSE
+		  AND EXISTS (
+			SELECT 1
+			FROM conversation_messages cm_start
+			WHERE cm_start.lead_id = leads.id
+			  AND cm_start.role = 'assistant'
+			  AND cm_start.intent = 'SCRIPT_PRIMARY'
+		  )
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM conversation_messages cm_handoff
+			WHERE cm_handoff.lead_id = leads.id
+			  AND cm_handoff.role = 'assistant'
+			  AND cm_handoff.intent = 'SCRIPT_DIRECTOR'
+		  )
 		  AND (
 			(followup_count = 0 AND last_seen <= NOW() - $1::interval)
 			OR

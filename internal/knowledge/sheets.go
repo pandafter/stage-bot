@@ -351,7 +351,7 @@ func normalizeHeaderKey(s string) string {
 		case r == 'ñ':
 			b.WriteRune('n')
 		case unicode.IsLetter(r) || unicode.IsDigit(r):
-			b.WriteRune(unicode.ToLower(r))
+			b.WriteRune(r)
 		case r == ' ' || r == '_' || r == '-' || r == '.':
 			// skip separator
 		}

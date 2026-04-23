@@ -266,7 +266,7 @@ func classifyYesNo(text string) string {
 	}
 
 	yesWords := map[string]struct{}{
-		"si": {}, "sí": {}, "ok": {}, "dale": {}, "claro": {}, "de una": {}, "yes": {},
+		"si": {}, "ok": {}, "dale": {}, "claro": {}, "de una": {}, "yes": {},
 	}
 	noWords := map[string]struct{}{
 		"no": {}, "nop": {}, "negativo": {},
