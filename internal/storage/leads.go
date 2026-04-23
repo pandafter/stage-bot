@@ -173,9 +173,10 @@ func (r *LeadsRepo) ListByOutcome(ctx context.Context, outcome LeadOutcome, limi
 // StaleLeads returns open leads that are due for a follow-up according to the
 // minimum schedule from the last user message (first attempt) and last
 // follow-up timestamp (subsequent attempts):
-//   - followup_count = 0 -> due at >= 20m
+//   - followup_count = 0 -> due at >= 6h
 //   - followup_count = 1 -> due at >= 24h
-//   - followup_count = 2 -> due at >= 48h
+//   - followup_count = 2 -> due at >= 120h
+//
 // This avoids losing leads when a follow-up is intentionally deferred.
 func (r *LeadsRepo) StaleLeads(ctx context.Context, d1, d2, d3 time.Duration, limit int) ([]*LeadRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
@@ -184,8 +185,8 @@ func (r *LeadsRepo) StaleLeads(ctx context.Context, d1, d2, d3 time.Duration, li
 			followup_count, last_followup
 		FROM leads
 		WHERE outcome = 'open'
-		  AND lead_score >= 20
-		  AND total_messages >= 2
+		  AND total_messages >= 1
+		  AND buy_signal = FALSE
 		  AND (
 			(followup_count = 0 AND last_seen <= NOW() - $1::interval)
 			OR

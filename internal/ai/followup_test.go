@@ -189,35 +189,26 @@ func TestDropPastFollowupResponses(t *testing.T) {
 
 func TestSimpleFollowupMessage_Default(t *testing.T) {
 	lead := &storage.LeadRecord{}
-	got := simpleFollowupMessage(lead)
-	want := "Hola, ¿cómo estás? ¿Quieres que sigamos con precios o horarios?"
+	got := simpleFollowupMessage(1, lead)
+	want := "Hola, te escribimos para hacer seguimiento. ¿Te compartimos el número del director para continuar? Responde Sí o No."
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
 
-func TestSimpleFollowupMessage_HotLead(t *testing.T) {
+func TestSimpleFollowupMessage_SecondAttempt(t *testing.T) {
 	lead := &storage.LeadRecord{LeadScore: 70}
-	got := simpleFollowupMessage(lead)
-	want := "Hola, ¿cómo estás? ¿Quieres que sigamos con la inscripción?"
+	got := simpleFollowupMessage(2, lead)
+	want := "Seguimos atentos. Si quieres continuar con la venta, responde Sí y te pasamos el número del director."
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
 
-func TestSimpleFollowupMessage_BuySignal(t *testing.T) {
+func TestSimpleFollowupMessage_ThirdAttempt(t *testing.T) {
 	lead := &storage.LeadRecord{BuySignal: true, LeadScore: 30}
-	got := simpleFollowupMessage(lead)
-	want := "Hola, ¿cómo estás? ¿Quieres que sigamos con la inscripción?"
-	if got != want {
-		t.Fatalf("got %q, want %q", got, want)
-	}
-}
-
-func TestSimpleFollowupMessage_PriceAndScheduleAsked(t *testing.T) {
-	lead := &storage.LeadRecord{PriceAsked: true, ScheduleAsked: true}
-	got := simpleFollowupMessage(lead)
-	want := "Hola, ¿cómo estás? ¿Quieres que sigamos con la inscripción?"
+	got := simpleFollowupMessage(3, lead)
+	want := "Último mensaje de seguimiento: si quieres continuar, responde Sí y te pasamos el número del director."
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
