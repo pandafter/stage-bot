@@ -321,6 +321,9 @@ func (s *Store) fetchTabRows(tabName string) ([]map[string]string, error) {
 			if i < len(headers) {
 				key = headers[i]
 			}
+			if key == "" {
+				key = fmt.Sprintf("col%d", i)
+			}
 			entry[key] = val
 		}
 		if nonEmpty {
