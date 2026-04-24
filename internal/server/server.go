@@ -81,6 +81,7 @@ func (s *Server) setupRoutes(deps Dependencies) {
 	s.app.Post("/webhook", wh.Receive)
 
 	mcpHandler := mcp.NewHandler(s.cfg, s.logger)
+	s.app.Post("/mcp/token", mcpHandler.Token)
 	s.app.Get("/mcp", mcpHandler.Auth, mcpHandler.Stream)
 	s.app.Post("/mcp", mcpHandler.Auth, mcpHandler.HandleJSONRPC)
 

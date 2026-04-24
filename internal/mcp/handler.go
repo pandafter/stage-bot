@@ -3,6 +3,8 @@ package mcp
 import (
 	"bufio"
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
@@ -24,12 +26,14 @@ const (
 	githubAPIVersion = "2022-11-28"
 	defaultBranch    = "main"
 	pingInterval     = 20 * time.Second
+	tokenTTL         = time.Hour
 )
 
 type Handler struct {
 	cfg    *config.Config
 	logger *zap.Logger
 	http   *http.Client
+	now    func() time.Time
 }
 
 type rpcRequest struct {
@@ -58,6 +62,7 @@ func NewHandler(cfg *config.Config, logger *zap.Logger) *Handler {
 		http: &http.Client{
 			Timeout: 20 * time.Second,
 		},
+		now: time.Now,
 	}
 }
 
@@ -73,10 +78,54 @@ func (h *Handler) Auth(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusUnauthorized)
 	}
 	token := strings.TrimSpace(strings.TrimPrefix(authHeader, prefix))
-	if subtle.ConstantTimeCompare([]byte(token), []byte(secret)) != 1 {
+	if !h.validateAccessToken(token, h.now()) {
 		return c.SendStatus(fiber.StatusUnauthorized)
 	}
 	return c.Next()
+}
+
+func (h *Handler) Token(c *fiber.Ctx) error {
+	secret := strings.TrimSpace(h.cfg.MCPSecret)
+	if secret == "" {
+		return c.Status(fiber.StatusServiceUnavailable).SendString("MCP_SECRET not configured")
+	}
+
+	grantType := strings.TrimSpace(c.FormValue("grant_type"))
+	clientID := strings.TrimSpace(c.FormValue("client_id"))
+	clientSecret := strings.TrimSpace(c.FormValue("client_secret"))
+	if grantType == "" && clientID == "" && clientSecret == "" {
+		var body struct {
+			GrantType    string `json:"grant_type"`
+			ClientID     string `json:"client_id"`
+			ClientSecret string `json:"client_secret"`
+		}
+		if err := c.BodyParser(&body); err == nil {
+			grantType = strings.TrimSpace(body.GrantType)
+			clientID = strings.TrimSpace(body.ClientID)
+			clientSecret = strings.TrimSpace(body.ClientSecret)
+		}
+	}
+
+	if grantType != "client_credentials" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "unsupported_grant_type"})
+	}
+	if subtle.ConstantTimeCompare([]byte(clientSecret), []byte(secret)) != 1 {
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
+	if clientID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid_client"})
+	}
+
+	accessToken, err := h.issueAccessToken(clientID, h.now())
+	if err != nil {
+		h.logger.Error("failed to issue mcp token", zap.Error(err))
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+	return c.JSON(fiber.Map{
+		"access_token": accessToken,
+		"token_type":   "bearer",
+		"expires_in":   int(tokenTTL.Seconds()),
+	})
 }
 
 func (h *Handler) Stream(c *fiber.Ctx) error {
@@ -501,4 +550,53 @@ func extractGitHubErr(body []byte) string {
 // base64 payloads with newlines.
 func decodeGitHubBase64(content string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(strings.ReplaceAll(content, "\n", ""))
+}
+
+func (h *Handler) issueAccessToken(clientID string, now time.Time) (string, error) {
+	payload, err := json.Marshal(map[string]any{
+		"cid": clientID,
+		"exp": now.Add(tokenTTL).Unix(),
+	})
+	if err != nil {
+		return "", err
+	}
+	sig := h.signTokenPayload(payload)
+	return base64.RawURLEncoding.EncodeToString(payload) + "." + base64.RawURLEncoding.EncodeToString(sig), nil
+}
+
+func (h *Handler) validateAccessToken(token string, now time.Time) bool {
+	parts := strings.Split(token, ".")
+	if len(parts) != 2 {
+		return false
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return false
+	}
+	signature, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return false
+	}
+	expectedSig := h.signTokenPayload(payload)
+	if subtle.ConstantTimeCompare(signature, expectedSig) != 1 {
+		return false
+	}
+
+	var claims struct {
+		ClientID string `json:"cid"`
+		Exp      int64  `json:"exp"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return false
+	}
+	if claims.ClientID == "" {
+		return false
+	}
+	return now.Unix() < claims.Exp
+}
+
+func (h *Handler) signTokenPayload(payload []byte) []byte {
+	mac := hmac.New(sha256.New, []byte(strings.TrimSpace(h.cfg.MCPSecret)))
+	mac.Write(payload)
+	return mac.Sum(nil)
 }
