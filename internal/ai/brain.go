@@ -265,23 +265,33 @@ func classifyYesNo(text string) string {
 		return ""
 	}
 
-	yesWords := []string{
-		"si", "ok", "dale", "claro", "de una", "yes", "si quiero", "quiero", "me interesa",
-	}
-	noWords := []string{
-		"no", "nop", "negativo", "no gracias", "ahora no",
-	}
-
-	for _, yesWord := range yesWords {
-		if normalized == yesWord || strings.HasPrefix(normalized, yesWord+" ") {
+	yesPhrases := []string{"si quiero", "me interesa", "de una"}
+	for _, phrase := range yesPhrases {
+		if normalized == phrase || strings.HasPrefix(normalized, phrase+" ") {
 			return "yes"
 		}
 	}
-	for _, noWord := range noWords {
-		if normalized == noWord || strings.HasPrefix(normalized, noWord+" ") {
+
+	noPhrases := []string{"no quiero", "no gracias", "ahora no"}
+	for _, phrase := range noPhrases {
+		if normalized == phrase || strings.HasPrefix(normalized, phrase+" ") {
 			return "no"
 		}
 	}
+
+	yesWords := map[string]struct{}{
+		"si": {}, "ok": {}, "dale": {}, "claro": {}, "yes": {},
+	}
+	noWords := map[string]struct{}{
+		"no": {}, "nop": {}, "negativo": {},
+	}
+	if _, ok := yesWords[normalized]; ok {
+		return "yes"
+	}
+	if _, ok := noWords[normalized]; ok {
+		return "no"
+	}
+
 	return ""
 }
 
