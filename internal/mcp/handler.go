@@ -734,3 +734,18 @@ func (h *Handler) AuthorizeSubmit(c *fiber.Ctx) error {
 	return c.Redirect(target, fiber.StatusFound)
 }
 
+func (h *Handler) OAuthMetadata(c *fiber.Ctx) error {
+	baseURL := strings.TrimRight(h.cfg.PublicURL, "/")
+	if baseURL == "" {
+		baseURL = "https://stage-bot-production.up.railway.app"
+	}
+	return c.JSON(map[string]any{
+		"issuer":                 baseURL,
+		"authorization_endpoint": baseURL + "/authorize",
+		"token_endpoint":         baseURL + "/mcp/token",
+		"response_types_supported": []string{"code"},
+		"grant_types_supported":    []string{"authorization_code", "client_credentials"},
+		"code_challenge_methods_supported": []string{"S256"},
+	})
+}
+
