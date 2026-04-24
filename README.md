@@ -123,6 +123,11 @@ instagram-bot/
 | `DATABASE_URL` | No | SQLite database path (default: data/bot.db) |
 | `TEST_SENDER_ID` | No | Only respond to this user in development |
 | `COMMENT_TRIGGER_KEYWORD` | No | Keyword in latest post comments that triggers DM sales flow (default: `piloto`) |
+| `GITHUB_TOKEN` | No | GitHub API token used by MCP tools |
+| `GITHUB_REPO` | No | Target repository in `owner/repo` format for MCP tools |
+| `MCP_SECRET` | No | Bearer token required to access `/mcp` |
+| `BOT_PROMPT` | No | Optional bot prompt returned by MCP `get_bot_config` |
+| `SYSTEM_PROMPT` | No | Optional fallback prompt returned by MCP `get_bot_config` |
 
 ### Local Development
 

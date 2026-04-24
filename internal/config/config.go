@@ -25,7 +25,7 @@ type Config struct {
 	AnthropicAPIKey string
 
 	// ElevenLabs
-	ElevenLabsAPIKey string
+	ElevenLabsAPIKey  string
 	ElevenLabsVoiceID string
 
 	// OpenAI (Whisper)
@@ -48,6 +48,13 @@ type Config struct {
 	// Admin panel auth token
 	AdminToken string
 
+	// MCP / GitHub integration
+	GitHubToken  string
+	GitHubRepo   string
+	MCPSecret    string
+	BotPrompt    string
+	SystemPrompt string
+
 	// Queue worker pool
 	WorkerConcurrency int
 	WorkerMaxAttempts int
@@ -61,25 +68,30 @@ func Load() (*Config, error) {
 	_ = godotenv.Load()
 
 	cfg := &Config{
-		Port:               getIntEnv("PORT", 8080),
-		Env:                getEnv("ENV", "development"),
-		AppID:              getEnv("APP_ID", ""),
-		AppSecret:          getEnv("APP_SECRET", ""),
-		PageAccessToken:    getEnv("PAGE_ACCESS_TOKEN", ""),
-		InstagramAccountID: getEnv("INSTAGRAM_ACCOUNT_ID", ""),
-		WebhookVerifyToken: getEnv("WEBHOOK_VERIFY_TOKEN", ""),
-		AnthropicAPIKey:    getEnv("ANTHROPIC_API_KEY", ""),
-		ElevenLabsAPIKey:   getEnv("ELEVENLABS_API_KEY", ""),
-		ElevenLabsVoiceID:  getEnv("ELEVENLABS_VOICE_ID", ""),
-		OpenAIAPIKey:       getEnv("OPENAI_API_KEY", ""),
-		GoogleSheetID:       getEnv("GOOGLE_SHEET_ID", ""),
-		PublicURL:           getEnv("PUBLIC_URL", ""),
-		DatabaseURL:        getEnv("DATABASE_URL", ""),
-		TestSenderID:       getEnv("TEST_SENDER_ID", ""),
-		CommentTriggerKeyword: getEnv("COMMENT_TRIGGER_KEYWORD", "piloto"),
-		AdminToken:         getEnv("ADMIN_TOKEN", ""),
-		WorkerConcurrency:  getIntEnv("WORKER_CONCURRENCY", 5),
-		WorkerMaxAttempts:  getIntEnv("WORKER_MAX_ATTEMPTS", 3),
+		Port:                     getIntEnv("PORT", 8080),
+		Env:                      getEnv("ENV", "development"),
+		AppID:                    getEnv("APP_ID", ""),
+		AppSecret:                getEnv("APP_SECRET", ""),
+		PageAccessToken:          getEnv("PAGE_ACCESS_TOKEN", ""),
+		InstagramAccountID:       getEnv("INSTAGRAM_ACCOUNT_ID", ""),
+		WebhookVerifyToken:       getEnv("WEBHOOK_VERIFY_TOKEN", ""),
+		AnthropicAPIKey:          getEnv("ANTHROPIC_API_KEY", ""),
+		ElevenLabsAPIKey:         getEnv("ELEVENLABS_API_KEY", ""),
+		ElevenLabsVoiceID:        getEnv("ELEVENLABS_VOICE_ID", ""),
+		OpenAIAPIKey:             getEnv("OPENAI_API_KEY", ""),
+		GoogleSheetID:            getEnv("GOOGLE_SHEET_ID", ""),
+		PublicURL:                getEnv("PUBLIC_URL", ""),
+		DatabaseURL:              getEnv("DATABASE_URL", ""),
+		TestSenderID:             getEnv("TEST_SENDER_ID", ""),
+		CommentTriggerKeyword:    getEnv("COMMENT_TRIGGER_KEYWORD", "piloto"),
+		AdminToken:               getEnv("ADMIN_TOKEN", ""),
+		GitHubToken:              getEnv("GITHUB_TOKEN", ""),
+		GitHubRepo:               getEnv("GITHUB_REPO", ""),
+		MCPSecret:                getEnv("MCP_SECRET", ""),
+		BotPrompt:                getEnv("BOT_PROMPT", ""),
+		SystemPrompt:             getEnv("SYSTEM_PROMPT", ""),
+		WorkerConcurrency:        getIntEnv("WORKER_CONCURRENCY", 5),
+		WorkerMaxAttempts:        getIntEnv("WORKER_MAX_ATTEMPTS", 3),
 		ClaudePriceInputPerMTok:  getFloatEnv("CLAUDE_PRICE_INPUT_PER_MTOK", 3.0),
 		ClaudePriceOutputPerMTok: getFloatEnv("CLAUDE_PRICE_OUTPUT_PER_MTOK", 15.0),
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/kart-academy/instagram-bot/internal/admin"
 	"github.com/kart-academy/instagram-bot/internal/config"
 	"github.com/kart-academy/instagram-bot/internal/domain"
+	"github.com/kart-academy/instagram-bot/internal/mcp"
 	"github.com/kart-academy/instagram-bot/internal/queue"
 	"github.com/kart-academy/instagram-bot/internal/storage"
 	"github.com/kart-academy/instagram-bot/internal/webhook"
@@ -78,6 +79,10 @@ func (s *Server) setupRoutes(deps Dependencies) {
 	}
 	s.app.Get("/webhook", wh.Verify)
 	s.app.Post("/webhook", wh.Receive)
+
+	mcpHandler := mcp.NewHandler(s.cfg, s.logger)
+	s.app.Get("/mcp", mcpHandler.Auth, mcpHandler.Stream)
+	s.app.Post("/mcp", mcpHandler.Auth, mcpHandler.HandleJSONRPC)
 
 	if deps.Leads != nil && deps.Conversation != nil {
 		ah := admin.NewHandler(s.cfg, deps.Leads, deps.Conversation, deps.Messenger, deps.AI, deps.Queue, s.logger)
