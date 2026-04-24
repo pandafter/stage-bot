@@ -195,7 +195,7 @@ func (h *Handler) tools() []map[string]any {
 		},
 		{
 			"name":        "edit_file",
-			"description": "Create or update a file in main branch in the configured GitHub repository",
+			"description": "Create or update a file in the configured GitHub repository default branch",
 			"inputSchema": map[string]any{
 				"type":     "object",
 				"required": []string{"path", "content", "message"},
@@ -284,8 +284,8 @@ func (h *Handler) callTool(name string, args map[string]interface{}) (string, bo
 		if !ok {
 			return "message must be a string", true
 		}
-		if strings.TrimSpace(path) == "" || strings.TrimSpace(message) == "" {
-			return "path and message are required strings (content may be an empty string)", true
+		if strings.TrimSpace(path) == "" || strings.TrimSpace(message) == "" || strings.TrimSpace(content) == "" {
+			return "path, content, and message are required", true
 		}
 		resp, err := h.githubEditFile(path, content, message)
 		if err != nil {
@@ -299,7 +299,7 @@ func (h *Handler) callTool(name string, args map[string]interface{}) (string, bo
 		if strings.TrimSpace(h.cfg.SystemPrompt) != "" {
 			return h.cfg.SystemPrompt, false
 		}
-		return "BOT_PROMPT and SYSTEM_PROMPT are not configured", true
+		return "bot configuration is not available", true
 	default:
 		return "unknown tool", true
 	}
@@ -456,9 +456,15 @@ func (h *Handler) githubAuth() (ownerRepo, token string, err error) {
 	}
 	ownerRepo = strings.TrimSpace(h.cfg.GitHubRepo)
 	parts := strings.Split(ownerRepo, "/")
-	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+	if len(parts) != 2 {
 		return "", "", fmt.Errorf("GITHUB_REPO must use owner/repo format (e.g., facebook/react)")
 	}
+	owner := strings.TrimSpace(parts[0])
+	repo := strings.TrimSpace(parts[1])
+	if owner == "" || repo == "" {
+		return "", "", fmt.Errorf("GITHUB_REPO must use owner/repo format (e.g., facebook/react)")
+	}
+	ownerRepo = owner + "/" + repo
 	return ownerRepo, token, nil
 }
 
@@ -471,8 +477,14 @@ func setGitHubHeaders(req *http.Request, token string) {
 
 func escapePath(path string) string {
 	trimmed := strings.TrimPrefix(strings.TrimSpace(path), "/")
-	escaped := url.PathEscape(trimmed)
-	return strings.ReplaceAll(escaped, "%2F", "/")
+	if trimmed == "" {
+		return ""
+	}
+	parts := strings.Split(trimmed, "/")
+	for i, p := range parts {
+		parts[i] = url.PathEscape(p)
+	}
+	return strings.Join(parts, "/")
 }
 
 func extractGitHubErr(body []byte) string {
