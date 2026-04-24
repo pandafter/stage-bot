@@ -181,7 +181,7 @@ func (b *Brain) scriptedReply(history []storage.ConversationMessage, text string
 	directorText := b.directorMessage(provider)
 
 	if primaryText == "" {
-		primaryText = "Hola. ¿Quieres que te pase el número del director para continuar? Responde solo Sí o No."
+		primaryText = "Hola, te comparto la información principal de Scuderia St4ge.\n\n¿Quieres el link de inscripción con las fechas y los medios de pago para reservar tu cupo con el descuento que tienes aprobado por tiempo limitado?"
 	}
 
 	hasPrimary := false
@@ -265,17 +265,22 @@ func classifyYesNo(text string) string {
 		return ""
 	}
 
-	yesWords := map[string]struct{}{
-		"si": {}, "ok": {}, "dale": {}, "claro": {}, "de una": {}, "yes": {},
+	yesWords := []string{
+		"si", "ok", "dale", "claro", "de una", "yes", "si quiero", "quiero", "me interesa",
 	}
-	noWords := map[string]struct{}{
-		"no": {}, "nop": {}, "negativo": {},
+	noWords := []string{
+		"no", "nop", "negativo", "no gracias", "ahora no",
 	}
-	if _, ok := yesWords[normalized]; ok {
-		return "yes"
+
+	for _, yesWord := range yesWords {
+		if normalized == yesWord || strings.HasPrefix(normalized, yesWord+" ") {
+			return "yes"
+		}
 	}
-	if _, ok := noWords[normalized]; ok {
-		return "no"
+	for _, noWord := range noWords {
+		if normalized == noWord || strings.HasPrefix(normalized, noWord+" ") {
+			return "no"
+		}
 	}
 	return ""
 }

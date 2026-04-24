@@ -190,7 +190,7 @@ func TestDropPastFollowupResponses(t *testing.T) {
 func TestSimpleFollowupMessage_Default(t *testing.T) {
 	lead := &storage.LeadRecord{}
 	got := simpleFollowupMessage(1, lead)
-	want := "Hola, te escribimos para hacer seguimiento. ¿Te compartimos el número del director para continuar? Responde Sí o No."
+	want := "Hola, te escribimos para hacer seguimiento. ¿Quieres el link de inscripción con las fechas y los medios de pago para reservar tu cupo con el descuento que tienes aprobado por tiempo limitado?"
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
@@ -199,7 +199,7 @@ func TestSimpleFollowupMessage_Default(t *testing.T) {
 func TestSimpleFollowupMessage_SecondAttempt(t *testing.T) {
 	lead := &storage.LeadRecord{LeadScore: 70}
 	got := simpleFollowupMessage(2, lead)
-	want := "Seguimos atentos. Si quieres continuar con la venta, responde Sí y te pasamos el número del director."
+	want := "Seguimos atentos. Si te interesa, te enviamos el link de inscripción con fechas y medios de pago para reservar tu cupo con el descuento aprobado."
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
@@ -208,7 +208,7 @@ func TestSimpleFollowupMessage_SecondAttempt(t *testing.T) {
 func TestSimpleFollowupMessage_ThirdAttempt(t *testing.T) {
 	lead := &storage.LeadRecord{BuySignal: true, LeadScore: 30}
 	got := simpleFollowupMessage(3, lead)
-	want := "Último mensaje de seguimiento: si quieres continuar, responde Sí y te pasamos el número del director."
+	want := "Último mensaje de seguimiento: si quieres continuar, te compartimos el link de inscripción con fechas y medios de pago para reservar tu cupo con descuento."
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
