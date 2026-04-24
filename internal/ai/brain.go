@@ -210,14 +210,13 @@ func (b *Brain) scriptedReply(history []storage.ConversationMessage, text string
 	hasKartRequest := asksKartSale(text)
 	wantsCourseInfo := asksCourseInfo(text)
 
-	if hasKartRequest && wantsCourseInfo && !hasPrimary && primaryText != "" && directorText != "" {
-		return scriptedDecision{
-			reply:           joinScriptedMessages(primaryText, directorText),
-			assistantIntent: scriptIntentPrimaryAndLead,
+	if hasKartRequest && directorText != "" {
+		if wantsCourseInfo {
+			return scriptedDecision{
+				reply:           joinScriptedMessages(primaryText, directorText),
+				assistantIntent: scriptIntentPrimaryAndLead,
+			}
 		}
-	}
-
-	if asksKartSale(text) && directorText != "" {
 		return scriptedDecision{reply: directorText, assistantIntent: scriptIntentDirector}
 	}
 
@@ -227,13 +226,6 @@ func (b *Brain) scriptedReply(history []storage.ConversationMessage, text string
 
 	if hasDirector {
 		return scriptedDecision{}
-	}
-
-	if (wantsCourseInfo || asksEnrollmentOrPayment(text)) && directorText != "" && hasKartRequest {
-		return scriptedDecision{
-			reply:           joinScriptedMessages(primaryText, directorText),
-			assistantIntent: scriptIntentPrimaryAndLead,
-		}
 	}
 
 	if wantsCourseInfo {
@@ -352,7 +344,7 @@ func asksEnrollmentOrPayment(text string) bool {
 	n := normalizeForMatch(text)
 	return containsAny(n,
 		"inscripcion", "inscrib", "formulario", "registro", "continuar",
-		"pago", "pagar", "pago", "pagos", "medio de pago", "link",
+		"pago", "pagar", "pagos", "medio de pago", "link",
 	)
 }
 
