@@ -20,7 +20,10 @@ import (
 )
 
 const (
-	githubAPIBase = "https://api.github.com"
+	githubAPIBase    = "https://api.github.com"
+	githubAPIVersion = "2022-11-28"
+	defaultBranch    = "main"
+	pingInterval     = 20 * time.Second
 )
 
 type Handler struct {
@@ -88,7 +91,7 @@ func (h *Handler) Stream(c *fiber.Ctx) error {
 			"path":   "/mcp",
 		})
 
-		ticker := time.NewTicker(20 * time.Second)
+		ticker := time.NewTicker(pingInterval)
 		defer ticker.Stop()
 
 		for range ticker.C {
@@ -256,7 +259,10 @@ func (h *Handler) handleToolsCall(c *fiber.Ctx, req rpcRequest) error {
 func (h *Handler) callTool(name string, args map[string]interface{}) (string, bool) {
 	switch name {
 	case "get_file":
-		path, _ := args["path"].(string)
+		path, ok := args["path"].(string)
+		if !ok {
+			return "path must be a string", true
+		}
 		if strings.TrimSpace(path) == "" {
 			return "path is required", true
 		}
@@ -266,11 +272,20 @@ func (h *Handler) callTool(name string, args map[string]interface{}) (string, bo
 		}
 		return content, false
 	case "edit_file":
-		path, _ := args["path"].(string)
-		content, _ := args["content"].(string)
-		message, _ := args["message"].(string)
+		path, ok := args["path"].(string)
+		if !ok {
+			return "path must be a string", true
+		}
+		content, ok := args["content"].(string)
+		if !ok {
+			return "content must be a string", true
+		}
+		message, ok := args["message"].(string)
+		if !ok {
+			return "message must be a string", true
+		}
 		if strings.TrimSpace(path) == "" || strings.TrimSpace(message) == "" {
-			return "path and message are required", true
+			return "path and message are required strings (content may be an empty string)", true
 		}
 		resp, err := h.githubEditFile(path, content, message)
 		if err != nil {
@@ -329,7 +344,7 @@ func (h *Handler) githubGetFile(path string) (string, error) {
 		return "", fmt.Errorf("unsupported github encoding: %s", payload.Encoding)
 	}
 
-	decoded, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(payload.Content, "\n", ""))
+	decoded, err := decodeGitHubBase64(payload.Content)
 	if err != nil {
 		return "", err
 	}
@@ -350,7 +365,7 @@ func (h *Handler) githubEditFile(path, content, message string) (string, error) 
 	payload := map[string]any{
 		"message": message,
 		"content": base64.StdEncoding.EncodeToString([]byte(content)),
-		"branch":  "main",
+		"branch":  defaultBranch,
 	}
 	if sha != "" {
 		payload["sha"] = sha
@@ -396,11 +411,11 @@ func (h *Handler) githubEditFile(path, content, message string) (string, error) 
 	if err := json.Unmarshal(respBody, &out); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("updated %s on main\ncommit: %s\nurl: %s", out.Content.Path, out.Commit.SHA, out.Commit.HTMLURL), nil
+	return fmt.Sprintf("updated %s on %s\ncommit: %s\nurl: %s", out.Content.Path, defaultBranch, out.Commit.SHA, out.Commit.HTMLURL), nil
 }
 
 func (h *Handler) getCurrentFileSHA(ownerRepo, token, path string) (string, error) {
-	endpoint := fmt.Sprintf("%s/repos/%s/contents/%s?ref=main", githubAPIBase, ownerRepo, escapePath(path))
+	endpoint := fmt.Sprintf("%s/repos/%s/contents/%s?ref=%s", githubAPIBase, ownerRepo, escapePath(path), defaultBranch)
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
 		return "", err
@@ -442,7 +457,7 @@ func (h *Handler) githubAuth() (ownerRepo, token string, err error) {
 	ownerRepo = strings.TrimSpace(h.cfg.GitHubRepo)
 	parts := strings.Split(ownerRepo, "/")
 	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
-		return "", "", fmt.Errorf("GITHUB_REPO must use owner/repo format")
+		return "", "", fmt.Errorf("GITHUB_REPO must use owner/repo format (e.g., facebook/react)")
 	}
 	return ownerRepo, token, nil
 }
@@ -450,7 +465,7 @@ func (h *Handler) githubAuth() (ownerRepo, token string, err error) {
 func setGitHubHeaders(req *http.Request, token string) {
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	req.Header.Set("X-GitHub-Api-Version", githubAPIVersion)
 	req.Header.Set("User-Agent", "stage-bot-mcp")
 }
 
@@ -468,4 +483,10 @@ func extractGitHubErr(body []byte) string {
 		return parsed.Message
 	}
 	return strings.TrimSpace(string(body))
+}
+
+// decodeGitHubBase64 strips line breaks because GitHub's contents API may wrap
+// base64 payloads with newlines.
+func decodeGitHubBase64(content string) ([]byte, error) {
+	return base64.StdEncoding.DecodeString(strings.ReplaceAll(content, "\n", ""))
 }
