@@ -7,12 +7,14 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -34,6 +36,14 @@ type Handler struct {
 	logger *zap.Logger
 	http   *http.Client
 	now    func() time.Time
+	codeMu    sync.Mutex
+	codeStore map[string]authCodeEntry
+}
+
+type authCodeEntry struct {
+	CodeChallenge string
+	RedirectURI   string
+	Expires       time.Time
 }
 
 type rpcRequest struct {
@@ -63,6 +73,7 @@ func NewHandler(cfg *config.Config, logger *zap.Logger) *Handler {
 			Timeout: 20 * time.Second,
 		},
 		now: time.Now,
+		codeStore: make(map[string]authCodeEntry),
 	}
 }
 
@@ -93,22 +104,66 @@ func (h *Handler) Token(c *fiber.Ctx) error {
 	grantType := strings.TrimSpace(c.FormValue("grant_type"))
 	clientID := strings.TrimSpace(c.FormValue("client_id"))
 	clientSecret := strings.TrimSpace(c.FormValue("client_secret"))
-	if grantType == "" && clientID == "" && clientSecret == "" {
-		var body struct {
-			GrantType    string `json:"grant_type"`
-			ClientID     string `json:"client_id"`
-			ClientSecret string `json:"client_secret"`
-		}
-		if err := c.BodyParser(&body); err == nil {
-			grantType = strings.TrimSpace(body.GrantType)
-			clientID = strings.TrimSpace(body.ClientID)
-			clientSecret = strings.TrimSpace(body.ClientSecret)
-		}
-	}
 
-	if grantType != "client_credentials" {
+		switch grantType {
+	case "client_credentials":
+		if subtle.ConstantTimeCompare([]byte(clientSecret), []byte(secret)) != 1 {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
+		if clientID == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid_client"})
+		}
+		accessToken, err := h.issueAccessToken(clientID, h.now())
+		if err != nil {
+			h.logger.Error("failed to issue mcp token", zap.Error(err))
+			return c.SendStatus(fiber.StatusInternalServerError)
+		}
+		return c.JSON(fiber.Map{
+			"access_token": accessToken,
+			"token_type":   "bearer",
+			"expires_in":   int(tokenTTL.Seconds()),
+		})
+
+	case "authorization_code":
+		code := strings.TrimSpace(c.FormValue("code"))
+		codeVerifier := strings.TrimSpace(c.FormValue("code_verifier"))
+		if code == "" || codeVerifier == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid_request"})
+		}
+		h.codeMu.Lock()
+		entry, ok := h.codeStore[code]
+		if ok {
+			delete(h.codeStore, code)
+		}
+		h.codeMu.Unlock()
+		if !ok || h.now().After(entry.Expires) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid_grant"})
+		}
+		// Verify PKCE: BASE64URL(SHA256(code_verifier)) == code_challenge
+		digest := sha256.Sum256([]byte(codeVerifier))
+		computed := base64.RawURLEncoding.EncodeToString(digest[:])
+		if subtle.ConstantTimeCompare([]byte(computed), []byte(entry.CodeChallenge)) != 1 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid_grant"})
+		}
+		if clientID == "" {
+			clientID = "claude"
+		}
+		accessToken, err := h.issueAccessToken(clientID, h.now())
+		if err != nil {
+			h.logger.Error("failed to issue mcp token", zap.Error(err))
+			return c.SendStatus(fiber.StatusInternalServerError)
+		}
+		return c.JSON(fiber.Map{
+			"access_token": accessToken,
+			"token_type":   "bearer",
+			"expires_in":   int(tokenTTL.Seconds()),
+		})
+
+	default:
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "unsupported_grant_type"})
 	}
+
+	
 	if subtle.ConstantTimeCompare([]byte(clientSecret), []byte(secret)) != 1 {
 		return c.SendStatus(fiber.StatusUnauthorized)
 	}
@@ -600,3 +655,81 @@ func (h *Handler) signTokenPayload(payload []byte) []byte {
 	mac.Write(payload)
 	return mac.Sum(nil)
 }
+
+func (h *Handler) Authorize(c *fiber.Ctx) error {
+	state := c.Query("state")
+	redirectURI := c.Query("redirect_uri")
+	codeChallenge := c.Query("code_challenge")
+	clientID := c.Query("client_id")
+
+	html := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Stage Bot – Autorizar</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  body{font-family:system-ui,sans-serif;display:flex;align-items:center;
+       justify-content:center;min-height:100vh;margin:0;background:#0f0f0f;color:#fff}
+  .box{background:#1a1a1a;padding:2rem;border-radius:12px;width:90%%;max-width:360px}
+  h2{margin:0 0 1rem}
+  input[type=password]{width:100%%;padding:.75rem;border-radius:8px;border:1px solid #333;
+    background:#0f0f0f;color:#fff;font-size:1rem;box-sizing:border-box;margin-bottom:1rem}
+  button{width:100%%;padding:.75rem;background:#e63946;color:#fff;border:none;
+    border-radius:8px;font-size:1rem;cursor:pointer}
+  button:hover{background:#c1121f}
+</style>
+</head>
+<body>
+<div class="box">
+  <h2>🏎️ Stage Bot MCP</h2>
+  <p>Autoriza a Claude para conectarse al bot.</p>
+  <form method="POST" action="/authorize">
+    <input type="hidden" name="state" value="%s">
+    <input type="hidden" name="redirect_uri" value="%s">
+    <input type="hidden" name="code_challenge" value="%s">
+    <input type="hidden" name="client_id" value="%s">
+    <input type="password" name="password" placeholder="MCP Secret" autofocus>
+    <button type="submit">Autorizar</button>
+  </form>
+</div>
+</body>
+</html>`, state, redirectURI, codeChallenge, clientID)
+
+	c.Set("Content-Type", "text/html")
+	return c.SendString(html)
+}
+
+func (h *Handler) AuthorizeSubmit(c *fiber.Ctx) error {
+	secret := strings.TrimSpace(h.cfg.MCPSecret)
+	password := strings.TrimSpace(c.FormValue("password"))
+	state := c.FormValue("state")
+	redirectURI := c.FormValue("redirect_uri")
+	codeChallenge := c.FormValue("code_challenge")
+
+	if subtle.ConstantTimeCompare([]byte(password), []byte(secret)) != 1 {
+		c.Set("Content-Type", "text/html")
+		return c.Status(fiber.StatusUnauthorized).SendString(`<!DOCTYPE html>
+<html><body style="font-family:system-ui;text-align:center;padding:2rem;background:#0f0f0f;color:#fff">
+<h2>❌ Contraseña incorrecta</h2>
+<a href="javascript:history.back()" style="color:#e63946">Volver</a>
+</body></html>`)
+	}
+
+	// Generate auth code
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+	code := hex.EncodeToString(b)
+
+	h.codeMu.Lock()
+	h.codeStore[code] = authCodeEntry{
+		CodeChallenge: codeChallenge,
+		RedirectURI:   redirectURI,
+		Expires:       h.now().Add(5 * time.Minute),
+	}
+	h.codeMu.Unlock()
+
+	target := redirectURI + "?code=" + code + "&state=" + url.QueryEscape(state)
+	return c.Redirect(target, fiber.StatusFound)
+}
+
