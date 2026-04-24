@@ -120,6 +120,63 @@ func TestScriptedReply_KartSaleDirectsToDirector(t *testing.T) {
 	}
 }
 
+func TestScriptedReply_KartRentalAndCourse_FirstMessageCombinesPrimaryAndDirector(t *testing.T) {
+	b := &Brain{
+		knowledge: fakeScriptedKnowledge{
+			primary:  []string{"M1", "M2"},
+			director: "DIR",
+		},
+	}
+
+	got := b.scriptedReply(nil, "hola, quiero info del curso de piloto y qué karts tienen para renta")
+	if got.reply != "M1\n\nM2\n\nDIR" {
+		t.Fatalf("expected combined primary and director reply, got %q", got.reply)
+	}
+	if got.assistantIntent != scriptIntentPrimaryAndLead {
+		t.Fatalf("unexpected assistant intent: %q", got.assistantIntent)
+	}
+}
+
+func TestScriptedReply_AfterPrimary_CourseInfoGetsPrimaryAgain(t *testing.T) {
+	b := &Brain{
+		knowledge: fakeScriptedKnowledge{
+			primary:  []string{"M1", "M2"},
+			director: "DIR",
+		},
+	}
+	history := []storage.ConversationMessage{
+		{Role: storage.RoleAssistant, Intent: scriptIntentPrimary},
+	}
+
+	got := b.scriptedReply(history, "quiero informacion del curso de piloto, duracion y costo")
+	if got.reply != "M1\n\nM2" {
+		t.Fatalf("expected primary reply for course inquiry, got %q", got.reply)
+	}
+	if got.assistantIntent != scriptIntentPrimary {
+		t.Fatalf("unexpected assistant intent: %q", got.assistantIntent)
+	}
+}
+
+func TestScriptedReply_AfterPrimary_EnrollmentAndPaymentGetsDirector(t *testing.T) {
+	b := &Brain{
+		knowledge: fakeScriptedKnowledge{
+			primary:  []string{"M1", "M2"},
+			director: "DIR",
+		},
+	}
+	history := []storage.ConversationMessage{
+		{Role: storage.RoleAssistant, Intent: scriptIntentPrimary},
+	}
+
+	got := b.scriptedReply(history, "quiero continuar con la inscripcion, me pasas pagos")
+	if got.reply != "DIR" {
+		t.Fatalf("expected director reply for enrollment/payment, got %q", got.reply)
+	}
+	if got.assistantIntent != scriptIntentDirector {
+		t.Fatalf("unexpected assistant intent: %q", got.assistantIntent)
+	}
+}
+
 func TestFollowUpMessage_UsesKnowledgeFirst(t *testing.T) {
 	b := &Brain{
 		knowledge: fakeScriptedKnowledge{

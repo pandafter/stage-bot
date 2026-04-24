@@ -40,6 +40,12 @@ type scriptedDecision struct {
 	assistantIntent string
 }
 
+const (
+	scriptIntentPrimary        = "SCRIPT_PRIMARY"
+	scriptIntentDirector       = "SCRIPT_DIRECTOR"
+	scriptIntentPrimaryAndLead = "SCRIPT_PRIMARY_DIRECTOR"
+)
+
 func New(
 	apiKey string,
 	ks domain.KnowledgeBase,
@@ -191,23 +197,43 @@ func (b *Brain) scriptedReply(history []storage.ConversationMessage, text string
 			continue
 		}
 		switch strings.ToUpper(strings.TrimSpace(msg.Intent)) {
-		case "SCRIPT_PRIMARY":
+		case scriptIntentPrimary:
 			hasPrimary = true
-		case "SCRIPT_DIRECTOR":
+		case scriptIntentDirector:
+			hasDirector = true
+		case scriptIntentPrimaryAndLead:
+			hasPrimary = true
 			hasDirector = true
 		}
 	}
 
-	if asksKartSale(text) && directorText != "" {
-		return scriptedDecision{reply: directorText, assistantIntent: "SCRIPT_DIRECTOR"}
+	hasKartRequest := asksKartSale(text)
+	wantsCourseInfo := asksCourseInfo(text)
+
+	if hasKartRequest && directorText != "" {
+		if wantsCourseInfo {
+			return scriptedDecision{
+				reply:           joinScriptedMessages(primaryText, directorText),
+				assistantIntent: scriptIntentPrimaryAndLead,
+			}
+		}
+		return scriptedDecision{reply: directorText, assistantIntent: scriptIntentDirector}
 	}
 
 	if !hasPrimary {
-		return scriptedDecision{reply: primaryText, assistantIntent: "SCRIPT_PRIMARY"}
+		return scriptedDecision{reply: primaryText, assistantIntent: scriptIntentPrimary}
 	}
 
 	if hasDirector {
 		return scriptedDecision{}
+	}
+
+	if wantsCourseInfo {
+		return scriptedDecision{reply: primaryText, assistantIntent: scriptIntentPrimary}
+	}
+
+	if asksEnrollmentOrPayment(text) && directorText != "" {
+		return scriptedDecision{reply: directorText, assistantIntent: scriptIntentDirector}
 	}
 
 	switch classifyYesNo(text) {
@@ -215,7 +241,7 @@ func (b *Brain) scriptedReply(history []storage.ConversationMessage, text string
 		if directorText == "" {
 			return scriptedDecision{}
 		}
-		return scriptedDecision{reply: directorText, assistantIntent: "SCRIPT_DIRECTOR"}
+		return scriptedDecision{reply: directorText, assistantIntent: scriptIntentDirector}
 	case "no":
 		return scriptedDecision{}
 	default:
@@ -300,7 +326,37 @@ func asksKartSale(text string) bool {
 	if !strings.Contains(n, "kart") {
 		return false
 	}
-	return containsAny(n, "venta", "comprar", "compro", "venden", "precio", "cuanto", "cuesta")
+	return containsAny(n,
+		"venta", "comprar", "compro", "venden", "precio", "cuanto", "cuesta",
+		"renta", "alquiler", "alquilar", "disponible", "disponibles", "tipo", "tipos",
+	)
+}
+
+func asksCourseInfo(text string) bool {
+	n := normalizeForMatch(text)
+	return containsAny(n,
+		"curso", "cursos", "clase", "clases", "piloto", "duracion", "dura",
+		"costo", "incluye", "precio", "valor", "informacion", "info", "horario", "fecha",
+	)
+}
+
+func asksEnrollmentOrPayment(text string) bool {
+	n := normalizeForMatch(text)
+	return containsAny(n,
+		"inscripcion", "inscrib", "formulario", "registro", "continuar",
+		"pago", "pagar", "pagos", "medio de pago", "link",
+	)
+}
+
+func joinScriptedMessages(parts ...string) string {
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return strings.Join(out, "\n\n")
 }
 
 // buildSystemPrompt creates the full prompt with knowledge, strategy, lead profile,
