@@ -251,11 +251,11 @@ func (f *FollowUp) sendFollowUp(ctx context.Context, lead *storage.LeadRecord) e
 func simpleFollowupMessage(attempt int, lead *storage.LeadRecord) string {
 	switch attempt {
 	case 1:
-		return "Hola, te escribimos para hacer seguimiento. ¿Te compartimos el número del director para continuar? Responde Sí o No."
+		return "Hola, te escribimos para hacer seguimiento. ¿Quieres el link de inscripción con las fechas y los medios de pago para reservar tu cupo con el descuento que tienes aprobado por tiempo limitado?"
 	case 2:
-		return "Seguimos atentos. Si quieres continuar con la venta, responde Sí y te pasamos el número del director."
+		return "Seguimos atentos. Si te interesa, te enviamos el link de inscripción con fechas y medios de pago para reservar tu cupo con el descuento aprobado."
 	default:
-		return "Último mensaje de seguimiento: si quieres continuar, responde Sí y te pasamos el número del director."
+		return "Último mensaje de seguimiento: si quieres continuar, te compartimos el link de inscripción con fechas y medios de pago para reservar tu cupo con descuento."
 	}
 }
 

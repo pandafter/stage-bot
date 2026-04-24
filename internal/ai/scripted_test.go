@@ -69,6 +69,26 @@ func TestScriptedReply_YesSendsDirector(t *testing.T) {
 	}
 }
 
+func TestScriptedReply_YesPhraseSendsDirector(t *testing.T) {
+	b := &Brain{
+		knowledge: fakeScriptedKnowledge{
+			primary:  []string{"M1", "M2"},
+			director: "DIR",
+		},
+	}
+	history := []storage.ConversationMessage{
+		{Role: storage.RoleAssistant, Intent: "SCRIPT_PRIMARY"},
+	}
+
+	got := b.scriptedReply(history, "sí quiero el link")
+	if got.reply != "DIR" {
+		t.Fatalf("expected director reply for yes phrase, got %q", got.reply)
+	}
+	if got.assistantIntent != "SCRIPT_DIRECTOR" {
+		t.Fatalf("unexpected assistant intent: %q", got.assistantIntent)
+	}
+}
+
 func TestScriptedReply_NoStaysSilent(t *testing.T) {
 	b := &Brain{
 		knowledge: fakeScriptedKnowledge{

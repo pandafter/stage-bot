@@ -156,14 +156,26 @@ func (s *Store) DirectorContactMessage() string {
 	if data == nil {
 		return ""
 	}
+
+	linksVenta := strings.TrimSpace(data.LinksVenta)
 	director := strings.TrimSpace(data.Scripted.Director)
-	if director == "" {
+
+	if linksVenta == "" && director == "" {
 		return ""
 	}
-	if strings.Contains(strings.ToLower(director), "whatsapp") {
-		return director
+
+	var parts []string
+	if linksVenta != "" {
+		parts = append(parts, "Formulario de inscripción y medios de pago:\n"+linksVenta)
 	}
-	return fmt.Sprintf("Perfecto. Continúa la venta directamente por WhatsApp del director: %s", director)
+	if director != "" {
+		if strings.Contains(strings.ToLower(director), "whatsapp") {
+			parts = append(parts, director)
+		} else {
+			parts = append(parts, fmt.Sprintf("Número del director para acompañarte en la inscripción: %s", director))
+		}
+	}
+	return strings.Join(parts, "\n\n")
 }
 
 func (s *Store) FollowUpMessage(attempt int) string {
@@ -184,10 +196,10 @@ func (s *Store) FollowUpMessage(attempt int) string {
 func (s *Store) fetchScriptedMessages() ScriptedMessages {
 	out := ScriptedMessages{
 		Message1:     "Hola, te comparto la información principal de Scuderia St4ge.",
-		Message2:     "¿Quieres que te pase el número del director para continuar? Responde solo Sí o No.",
-		FollowUp6H:   "Hola, te escribimos para hacer seguimiento. Si quieres continuar responde Sí y te pasamos el número del director.",
-		FollowUp24H:  "Seguimos atentos. Si quieres continuar con la venta, responde Sí y te pasamos el número del director.",
-		FollowUp120H: "Último mensaje de seguimiento: si quieres continuar, responde Sí y te pasamos el número del director.",
+		Message2:     "¿Quieres el link de inscripción con las fechas y los medios de pago para reservar tu cupo con el descuento que tienes aprobado por tiempo limitado?",
+		FollowUp6H:   "Hola, te escribimos para hacer seguimiento. ¿Quieres el link de inscripción con las fechas y los medios de pago para reservar tu cupo con el descuento que tienes aprobado por tiempo limitado?",
+		FollowUp24H:  "Seguimos atentos. Si te interesa, te enviamos el link de inscripción con fechas y medios de pago para reservar tu cupo con el descuento aprobado.",
+		FollowUp120H: "Último mensaje de seguimiento: si quieres continuar, te compartimos el link de inscripción con fechas y medios de pago para reservar tu cupo con descuento.",
 	}
 
 	tabCandidates := []string{"mensajes_predeterminado", "mensajes_predeterminados", "mensajes"}
