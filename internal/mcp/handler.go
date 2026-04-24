@@ -87,14 +87,17 @@ func (h *Handler) Auth(c *fiber.Ctx) error {
 	authHeader := strings.TrimSpace(c.Get("Authorization"))
 	const prefix = "Bearer "
 	if !strings.HasPrefix(authHeader, prefix) {
+		c.Set("WWW-Authenticate", `Bearer realm="stage-bot-mcp"`)
 		return c.SendStatus(fiber.StatusUnauthorized)
 	}
 	token := strings.TrimSpace(strings.TrimPrefix(authHeader, prefix))
 	if !h.validateAccessToken(token, h.now()) {
+		c.Set("WWW-Authenticate", `Bearer realm="stage-bot-mcp"`)
 		return c.SendStatus(fiber.StatusUnauthorized)
 	}
 	return c.Next()
 }
+
 
 func (h *Handler) Token(c *fiber.Ctx) error {
 	secret := strings.TrimSpace(h.cfg.MCPSecret)
