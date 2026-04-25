@@ -87,15 +87,37 @@ func (h *Handler) Auth(c *fiber.Ctx) error {
 	authHeader := strings.TrimSpace(c.Get("Authorization"))
 	const prefix = "Bearer "
 	if !strings.HasPrefix(authHeader, prefix) {
-		c.Set("WWW-Authenticate", `Bearer realm="stage-bot-mcp"`)
+		c.Set("WWW-Authenticate", h.wwwAuthenticate(""))
 		return c.SendStatus(fiber.StatusUnauthorized)
 	}
 	token := strings.TrimSpace(strings.TrimPrefix(authHeader, prefix))
 	if !h.validateAccessToken(token, h.now()) {
-		c.Set("WWW-Authenticate", `Bearer realm="stage-bot-mcp"`)
+		c.Set("WWW-Authenticate", h.wwwAuthenticate("invalid_token"))
 		return c.SendStatus(fiber.StatusUnauthorized)
 	}
 	return c.Next()
+}
+
+// wwwAuthenticate builds an RFC 6750 / 9728 WWW-Authenticate header that points
+// MCP clients (Claude mobile/desktop) to our protected-resource metadata so
+// they can run the OAuth dance automatically.
+func (h *Handler) wwwAuthenticate(errorCode string) string {
+	resourceURL := strings.TrimRight(h.publicURL(), "/") + "/.well-known/oauth-protected-resource"
+	parts := []string{
+		`Bearer realm="stage-bot-mcp"`,
+		`resource_metadata="` + resourceURL + `"`,
+	}
+	if errorCode != "" {
+		parts = append(parts, `error="`+errorCode+`"`)
+	}
+	return strings.Join(parts, ", ")
+}
+
+func (h *Handler) publicURL() string {
+	if u := strings.TrimSpace(h.cfg.PublicURL); u != "" {
+		return strings.TrimRight(u, "/")
+	}
+	return "https://stage-bot-production.up.railway.app"
 }
 
 
@@ -166,25 +188,6 @@ func (h *Handler) Token(c *fiber.Ctx) error {
 	default:
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "unsupported_grant_type"})
 	}
-
-	
-	if subtle.ConstantTimeCompare([]byte(clientSecret), []byte(secret)) != 1 {
-		return c.SendStatus(fiber.StatusUnauthorized)
-	}
-	if clientID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid_client"})
-	}
-
-	accessToken, err := h.issueAccessToken(clientID, h.now())
-	if err != nil {
-		h.logger.Error("failed to issue mcp token", zap.Error(err))
-		return c.SendStatus(fiber.StatusInternalServerError)
-	}
-	return c.JSON(fiber.Map{
-		"access_token": accessToken,
-		"token_type":   "bearer",
-		"expires_in":   int(tokenTTL.Seconds()),
-	})
 }
 
 func (h *Handler) Stream(c *fiber.Ctx) error {
@@ -738,17 +741,66 @@ func (h *Handler) AuthorizeSubmit(c *fiber.Ctx) error {
 }
 
 func (h *Handler) OAuthMetadata(c *fiber.Ctx) error {
-	baseURL := strings.TrimRight(h.cfg.PublicURL, "/")
-	if baseURL == "" {
-		baseURL = "https://stage-bot-production.up.railway.app"
-	}
+	baseURL := h.publicURL()
 	return c.JSON(map[string]any{
-		"issuer":                 baseURL,
-		"authorization_endpoint": baseURL + "/authorize",
-		"token_endpoint":         baseURL + "/mcp/token",
-		"response_types_supported": []string{"code"},
-		"grant_types_supported":    []string{"authorization_code", "client_credentials"},
-		"code_challenge_methods_supported": []string{"S256"},
+		"issuer":                                baseURL,
+		"authorization_endpoint":                baseURL + "/authorize",
+		"token_endpoint":                        baseURL + "/mcp/token",
+		"registration_endpoint":                 baseURL + "/mcp/register",
+		"response_types_supported":              []string{"code"},
+		"grant_types_supported":                 []string{"authorization_code", "client_credentials"},
+		"code_challenge_methods_supported":      []string{"S256"},
+		"token_endpoint_auth_methods_supported": []string{"client_secret_post", "none"},
+		"scopes_supported":                      []string{"mcp"},
 	})
+}
+
+// ProtectedResourceMetadata implements RFC 9728. Modern MCP clients (Claude
+// mobile/desktop) hit this first to learn which authorization server protects
+// the MCP endpoint, then bounce to authorization_servers[0] for the OAuth
+// metadata document.
+func (h *Handler) ProtectedResourceMetadata(c *fiber.Ctx) error {
+	baseURL := h.publicURL()
+	return c.JSON(map[string]any{
+		"resource":              baseURL + "/mcp",
+		"authorization_servers": []string{baseURL},
+		"bearer_methods_supported": []string{"header"},
+		"scopes_supported":      []string{"mcp"},
+	})
+}
+
+// DynamicClientRegister implements a permissive RFC 7591 registration endpoint.
+// Claude mobile uses dynamic registration when no static client_id is known.
+// We don't store anything: the actual auth gate is the password on /authorize
+// (PKCE) or MCP_SECRET (client_credentials), so registration is just a stub
+// that returns whatever client_id the caller asked for (or "claude" by default).
+func (h *Handler) DynamicClientRegister(c *fiber.Ctx) error {
+	var req struct {
+		ClientName              string   `json:"client_name"`
+		RedirectURIs            []string `json:"redirect_uris"`
+		TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method"`
+		GrantTypes              []string `json:"grant_types"`
+		ResponseTypes           []string `json:"response_types"`
+		Scope                   string   `json:"scope"`
+	}
+	if err := json.Unmarshal(c.Body(), &req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid_client_metadata"})
+	}
+
+	clientID := strings.TrimSpace(req.ClientName)
+	if clientID == "" {
+		clientID = "claude"
+	}
+
+	resp := fiber.Map{
+		"client_id":                   clientID,
+		"client_id_issued_at":         h.now().Unix(),
+		"redirect_uris":               req.RedirectURIs,
+		"token_endpoint_auth_method":  "none",
+		"grant_types":                 []string{"authorization_code"},
+		"response_types":              []string{"code"},
+		"scope":                       "mcp",
+	}
+	return c.Status(fiber.StatusCreated).JSON(resp)
 }
 

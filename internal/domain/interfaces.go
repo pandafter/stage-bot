@@ -10,8 +10,16 @@ type Messenger interface {
 }
 
 // AIEngine processes user messages and returns AI-generated responses.
+// Reply.AudioScript, when non-empty, instructs the transport layer to
+// synthesize and send an audio message before the text reply.
 type AIEngine interface {
-	Process(senderID, text string) (string, error)
+	Process(senderID, text string) (Reply, error)
+}
+
+// Reply bundles the AI's textual response with an optional audio script.
+type Reply struct {
+	Text        string
+	AudioScript string
 }
 
 // VoiceService handles speech-to-text and text-to-speech operations.

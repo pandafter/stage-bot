@@ -35,6 +35,18 @@ type scriptedKnowledge interface {
 	FollowUpMessage(attempt int) string
 }
 
+// salesContactProvider exposes the sales WhatsApp number when available.
+// It's an optional interface; knowledge bases without sales contact data simply
+// don't implement it.
+type salesContactProvider interface {
+	EmpresaWhatsApp() string
+}
+
+// charlaProvider exposes the description of what the course charla covers.
+type charlaProvider interface {
+	CharlaIncluida() string
+}
+
 type scriptedDecision struct {
 	reply           string
 	assistantIntent string
@@ -44,7 +56,24 @@ const (
 	scriptIntentPrimary        = "SCRIPT_PRIMARY"
 	scriptIntentDirector       = "SCRIPT_DIRECTOR"
 	scriptIntentPrimaryAndLead = "SCRIPT_PRIMARY_DIRECTOR"
+	scriptIntentKartWhatsApp   = "SCRIPT_KART_WHATSAPP"
+	scriptIntentTrustAudio     = "SCRIPT_TRUST_AUDIO"
+
+	// Hardcoded sales WhatsApp (used when knowledge base doesn't expose one).
+	defaultSalesWhatsApp = "573059456266"
+
+	// Probability of attaching the trust-building audio after the primary
+	// scripted exchange. Rolled once per opportunity.
+	trustAudioProbability = 0.30
 )
+
+// trustAudioProvider lets the knowledge base supply a custom script for the
+// confidence-building audio. It's optional.
+type trustAudioProvider interface {
+	TrustAudioScript() string
+}
+
+const defaultTrustAudioScript = "Hola! Te habla el equipo de Scuderia St4ge. Quería contarte personalmente que el descuento que tienes aprobado sigue activo por tiempo limitado. El curso te forma como piloto profesional con instructores certificados, pista propia en Tocancipá y la charla incluida que arma todo tu perfil. Si tienes cualquier duda, dejamos las opciones ahí abajo y avanzamos juntos."
 
 func New(
 	apiKey string,
@@ -68,14 +97,14 @@ func New(
 
 // Process takes a user message and returns the AI response.
 // Pipeline: ensure lead -> detect intent -> update score -> select strategy -> generate -> persist.
-func (b *Brain) Process(senderID, text string) (string, error) {
+func (b *Brain) Process(senderID, text string) (domain.Reply, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	rec, err := b.leads.Ensure(ctx, senderID)
 	if err != nil {
 		b.logger.Error("lead ensure failed", zap.String("sender", senderID), zap.Error(err))
-		return b.fallback(text), nil
+		return domain.Reply{Text: b.fallback(text)}, nil
 	}
 
 	// If the lead was followed up and now responded, reset the counter
@@ -110,8 +139,78 @@ func (b *Brain) Process(senderID, text string) (string, error) {
 	}
 
 	chat := ChatResult{Text: decision.reply}
+
+	audioScript := ""
+	if b.shouldAttachTrustAudio(msgs, decision) {
+		audioScript = b.trustAudioScript()
+		b.logger.Info("trust audio attached", zap.String("sender", senderID))
+	}
+
 	b.persist(ctx, senderID, text, chat, intent, strategy, scoreDelta, rec, decision.assistantIntent)
-	return decision.reply, nil
+
+	if audioScript != "" {
+		// Persist a marker so we don't attempt to send a second trust audio.
+		audioMsg := storage.ConversationMessage{
+			LeadID:      senderID,
+			Role:        storage.RoleAssistant,
+			Content:     audioScript,
+			ContentType: "audio",
+			Intent:      scriptIntentTrustAudio,
+			Strategy:    string(strategy),
+			ScoreAfter:  rec.LeadScore,
+		}
+		dbCtx, cancel := context.WithTimeout(ctx, dbTimeout)
+		if err := b.conversation.Append(dbCtx, audioMsg); err != nil {
+			b.logger.Warn("persist trust audio marker failed", zap.Error(err))
+		}
+		cancel()
+	}
+
+	return domain.Reply{Text: decision.reply, AudioScript: audioScript}, nil
+}
+
+// shouldAttachTrustAudio decides whether to attach the confidence-building
+// audio. Triggers only after the lead has already received the primary
+// scripted message, never twice for the same lead, and at the configured
+// probability.
+func (b *Brain) shouldAttachTrustAudio(history []storage.ConversationMessage, decision scriptedDecision) bool {
+	// Don't bolt audio on top of these flow steps — they're already terminal
+	// or branching messages where extra audio would be noise.
+	switch decision.assistantIntent {
+	case "", scriptIntentPrimary, scriptIntentPrimaryAndLead, scriptIntentKartWhatsApp:
+		return false
+	}
+	if strings.TrimSpace(decision.reply) == "" {
+		return false
+	}
+
+	hasPrimary := false
+	for _, msg := range history {
+		if msg.Role != storage.RoleAssistant {
+			continue
+		}
+		intent := strings.ToUpper(strings.TrimSpace(msg.Intent))
+		if intent == scriptIntentPrimary || intent == scriptIntentPrimaryAndLead {
+			hasPrimary = true
+		}
+		if intent == scriptIntentTrustAudio {
+			return false
+		}
+	}
+	if !hasPrimary {
+		return false
+	}
+
+	return rand.Float64() < trustAudioProbability
+}
+
+func (b *Brain) trustAudioScript() string {
+	if provider, ok := b.knowledge.(trustAudioProvider); ok {
+		if val := strings.TrimSpace(provider.TrustAudioScript()); val != "" {
+			return val
+		}
+	}
+	return defaultTrustAudioScript
 }
 
 // loadHistory pulls the last N messages from DB.
@@ -210,14 +309,27 @@ func (b *Brain) scriptedReply(history []storage.ConversationMessage, text string
 	hasKartRequest := asksKartSale(text)
 	wantsCourseInfo := asksCourseInfo(text)
 
-	if hasKartRequest && directorText != "" {
-		if wantsCourseInfo {
-			return scriptedDecision{
-				reply:           joinScriptedMessages(primaryText, directorText),
-				assistantIntent: scriptIntentPrimaryAndLead,
+	if hasKartRequest {
+		topic := lastUserTopic(history, text)
+		whatsappReply := b.kartWhatsAppMessage(topic)
+		if whatsappReply != "" {
+			if wantsCourseInfo {
+				return scriptedDecision{
+					reply:           joinScriptedMessages(primaryText, whatsappReply),
+					assistantIntent: scriptIntentPrimaryAndLead,
+				}
 			}
+			return scriptedDecision{reply: whatsappReply, assistantIntent: scriptIntentKartWhatsApp}
 		}
-		return scriptedDecision{reply: directorText, assistantIntent: scriptIntentDirector}
+		if directorText != "" {
+			if wantsCourseInfo {
+				return scriptedDecision{
+					reply:           joinScriptedMessages(primaryText, directorText),
+					assistantIntent: scriptIntentPrimaryAndLead,
+				}
+			}
+			return scriptedDecision{reply: directorText, assistantIntent: scriptIntentDirector}
+		}
 	}
 
 	if !hasPrimary {
@@ -272,6 +384,99 @@ func (b *Brain) directorMessage(provider scriptedKnowledge) string {
 		return ""
 	}
 	return strings.TrimSpace(provider.DirectorContactMessage())
+}
+
+// kartWhatsAppMessage builds the redirect to the sales WhatsApp with the topic
+// the lead was asking about prefilled into the wa.me link, plus a short
+// human-facing line so the lead has context inside the DM too.
+func (b *Brain) kartWhatsAppMessage(topic string) string {
+	number := defaultSalesWhatsApp
+	if provider, ok := b.knowledge.(salesContactProvider); ok {
+		if val := strings.TrimSpace(provider.EmpresaWhatsApp()); val != "" {
+			number = normalizeWhatsAppNumber(val)
+		}
+	}
+	if number == "" {
+		return ""
+	}
+
+	subject := strings.TrimSpace(topic)
+	if subject == "" {
+		subject = "venta de karts"
+	}
+	prefill := "Hola, vengo del Instagram de Scuderia St4ge preguntando por: " + subject
+	link := "https://wa.me/" + number + "?text=" + urlQueryEscape(prefill)
+
+	return "De karts a la venta te ayudan directamente por WhatsApp: " + link +
+		"\n\nTe escribe el equipo comercial. Mientras, ¿prefieres que avancemos con el curso de piloto? Responde:\n" +
+		"A) Ver fechas y cupos\n" +
+		"B) Ver precio y formas de pago\n" +
+		"C) Hablar con el director del curso"
+}
+
+// lastUserTopic picks the most recent user message in history (or falls back to
+// the current text) to give the WhatsApp link some context.
+func lastUserTopic(history []storage.ConversationMessage, current string) string {
+	for i := len(history) - 1; i >= 0; i-- {
+		if history[i].Role == storage.RoleUser {
+			c := strings.TrimSpace(history[i].Content)
+			if c != "" {
+				return truncateForLink(c, 140)
+			}
+		}
+	}
+	return truncateForLink(current, 140)
+}
+
+func truncateForLink(s string, max int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "…"
+}
+
+// urlQueryEscape mirrors net/url.QueryEscape without pulling the net/url import
+// here (avoids tangling brain.go with networking concerns).
+func urlQueryEscape(s string) string {
+	const hex = "0123456789ABCDEF"
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case 'a' <= c && c <= 'z',
+			'A' <= c && c <= 'Z',
+			'0' <= c && c <= '9',
+			c == '-' || c == '_' || c == '.' || c == '~':
+			b.WriteByte(c)
+		case c == ' ':
+			b.WriteByte('+')
+		default:
+			b.WriteByte('%')
+			b.WriteByte(hex[c>>4])
+			b.WriteByte(hex[c&0x0f])
+		}
+	}
+	return b.String()
+}
+
+// normalizeWhatsAppNumber strips non-digit characters and prefixes the Colombia
+// country code if missing.
+func normalizeWhatsAppNumber(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	digits := b.String()
+	if digits == "" {
+		return ""
+	}
+	if len(digits) == 10 {
+		return "57" + digits
+	}
+	return digits
 }
 
 func (b *Brain) FollowUpMessage(attempt int, lead *storage.LeadRecord) string {

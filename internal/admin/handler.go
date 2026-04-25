@@ -817,17 +817,18 @@ func (h *Handler) dispatchSend(c *fiber.Ctx, senderID, instruction, mode string)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).SendString("AI error: " + err.Error())
 		}
-		if allowSkip && strings.TrimSpace(strings.ToUpper(reply)) == "SKIP" {
+		replyText := reply.Text
+		if allowSkip && strings.TrimSpace(strings.ToUpper(replyText)) == "SKIP" {
 			return utf8Text(c, "El AI decidió saltarse: "+senderID+" (no aplica enviar mensaje)")
 		}
-		if err := h.messenger.SendText(senderID, reply); err != nil {
+		if err := h.messenger.SendText(senderID, replyText); err != nil {
 			return c.Status(fiber.StatusInternalServerError).SendString("Error al enviar: " + err.Error())
 		}
-		sent = reply
+		sent = replyText
 		h.logger.Info("manual ai-send sent",
 			zap.String("sender_id", senderID),
 			zap.String("instruction", truncate(instruction, 120)),
-			zap.String("reply", truncate(reply, 120)))
+			zap.String("reply", truncate(replyText, 120)))
 	}
 
 	return utf8Text(c, "OK — enviado a "+senderID+":\n\n"+sent)

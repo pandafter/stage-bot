@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/kart-academy/instagram-bot/internal/storage"
@@ -106,7 +107,7 @@ func TestScriptedReply_NoStaysSilent(t *testing.T) {
 	}
 }
 
-func TestScriptedReply_KartSaleDirectsToDirector(t *testing.T) {
+func TestScriptedReply_KartSaleRoutesToWhatsApp(t *testing.T) {
 	b := &Brain{
 		knowledge: fakeScriptedKnowledge{
 			primary:  []string{"M1", "M2"},
@@ -115,12 +116,18 @@ func TestScriptedReply_KartSaleDirectsToDirector(t *testing.T) {
 	}
 
 	got := b.scriptedReply(nil, "¿venden kart? quiero comprar")
-	if got.reply != "DIR" {
-		t.Fatalf("expected direct handoff on kart sale question, got %q", got.reply)
+	if !strings.Contains(got.reply, "wa.me/"+defaultSalesWhatsApp) {
+		t.Fatalf("expected wa.me link with default sales number, got %q", got.reply)
+	}
+	if !strings.Contains(got.reply, "A)") || !strings.Contains(got.reply, "B)") {
+		t.Fatalf("expected lettered options after WhatsApp redirect, got %q", got.reply)
+	}
+	if got.assistantIntent != scriptIntentKartWhatsApp {
+		t.Fatalf("unexpected assistant intent: %q", got.assistantIntent)
 	}
 }
 
-func TestScriptedReply_KartRentalAndCourse_FirstMessageCombinesPrimaryAndDirector(t *testing.T) {
+func TestScriptedReply_KartRentalAndCourse_FirstMessageCombinesPrimaryAndWhatsApp(t *testing.T) {
 	b := &Brain{
 		knowledge: fakeScriptedKnowledge{
 			primary:  []string{"M1", "M2"},
@@ -129,8 +136,11 @@ func TestScriptedReply_KartRentalAndCourse_FirstMessageCombinesPrimaryAndDirecto
 	}
 
 	got := b.scriptedReply(nil, "hola, quiero info del curso de piloto y qué karts tienen para renta")
-	if got.reply != "M1\n\nM2\n\nDIR" {
-		t.Fatalf("expected combined primary and director reply, got %q", got.reply)
+	if !strings.HasPrefix(got.reply, "M1\n\nM2\n\n") {
+		t.Fatalf("expected primary block first, got %q", got.reply)
+	}
+	if !strings.Contains(got.reply, "wa.me/"+defaultSalesWhatsApp) {
+		t.Fatalf("expected wa.me link in combined reply, got %q", got.reply)
 	}
 	if got.assistantIntent != scriptIntentPrimaryAndLead {
 		t.Fatalf("unexpected assistant intent: %q", got.assistantIntent)

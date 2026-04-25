@@ -83,9 +83,19 @@ func (s *Server) setupRoutes(deps Dependencies) {
 	mcpHandler := mcp.NewHandler(s.cfg, s.logger)
 	s.app.Post("/mcp/token", mcpHandler.Token)
 	s.app.Get("/authorize", mcpHandler.Authorize)
-    s.app.Post("/authorize", mcpHandler.AuthorizeSubmit)
+	s.app.Post("/authorize", mcpHandler.AuthorizeSubmit)
 	s.app.Get("/mcp", mcpHandler.Auth, mcpHandler.Stream)
 	s.app.Post("/mcp", mcpHandler.Auth, mcpHandler.HandleJSONRPC)
+
+	// OAuth discovery endpoints required by Claude mobile / Claude Desktop
+	// to register this MCP server as a Custom Connector.
+	s.app.Get("/.well-known/oauth-authorization-server", mcpHandler.OAuthMetadata)
+	s.app.Get("/.well-known/oauth-protected-resource", mcpHandler.ProtectedResourceMetadata)
+	// Some clients append the MCP path to the well-known URL; alias both.
+	s.app.Get("/.well-known/oauth-authorization-server/mcp", mcpHandler.OAuthMetadata)
+	s.app.Get("/.well-known/oauth-protected-resource/mcp", mcpHandler.ProtectedResourceMetadata)
+	// MCP spec also asks for dynamic client registration metadata; we accept any client.
+	s.app.Post("/mcp/register", mcpHandler.DynamicClientRegister)
 
 	if deps.Leads != nil && deps.Conversation != nil {
 		ah := admin.NewHandler(s.cfg, deps.Leads, deps.Conversation, deps.Messenger, deps.AI, deps.Queue, s.logger)

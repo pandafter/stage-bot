@@ -37,15 +37,18 @@ type ScriptedMessages struct {
 
 // SheetData holds all parsed knowledge from the spreadsheet.
 type SheetData struct {
-	Empresa        string // general company info text
-	Cursos         string // courses details
-	Precios        string // pricing info
-	FAQ            string // frequently asked questions
-	Objeciones     string // objection handling
-	EjemplosVentas string // real sales response examples
-	LinksVenta     string // payment/sale links
-	Fechas         string // upcoming course dates and availability
-	Scripted       ScriptedMessages
+	Empresa             string   // general company info text
+	EmpresaWhatsApp     string   // sales WhatsApp number (digits only, no +)
+	EmpresaCharlaCubre  string   // what the in-person "charla" course session covers
+	Cursos              string   // courses details
+	Precios             string   // pricing info
+	FAQ                 string   // frequently asked questions
+	Objeciones          string   // objection handling
+	EjemplosVentas      string   // real sales response examples
+	GuideMessages       []string // lettered guide messages from ejemplos_ventas
+	LinksVenta          string   // payment/sale links
+	Fechas              string   // upcoming course dates and availability
+	Scripted            ScriptedMessages
 }
 
 func NewStore(sheetID string, logger *zap.Logger) *Store {
@@ -101,6 +104,17 @@ func (s *Store) Get() *SheetData {
 		*dest = content
 	}
 
+	if rows, err := s.fetchTabRows("empresa"); err == nil {
+		data.EmpresaWhatsApp = extractEmpresaWhatsApp(rows)
+		data.EmpresaCharlaCubre = extractFirstByKeys(rows,
+			"charlaincluida", "charla", "charlacubre", "incluyecharla")
+	}
+
+	if rows, err := s.fetchTabRows("ejemplos_ventas"); err == nil {
+		data.GuideMessages = extractColumnValues(rows,
+			"mensajespredeterminados", "mensajepredeterminado", "guia", "opciones")
+	}
+
 	data.Scripted = s.fetchScriptedMessages()
 
 	s.data = data
@@ -140,7 +154,44 @@ func (s *Store) FormatContext() string {
 		fmt.Fprintf(&b, "\n=== %s ===\n%s\n", sec.title, sec.content)
 	}
 
+	if data.EmpresaCharlaCubre != "" {
+		fmt.Fprintf(&b, "\n=== TEMAS QUE CUBRE LA CHARLA DEL CURSO ===\n%s\n", data.EmpresaCharlaCubre)
+	}
+	if data.EmpresaWhatsApp != "" {
+		fmt.Fprintf(&b, "\n=== WHATSAPP DE VENTAS ===\n%s\n", data.EmpresaWhatsApp)
+	}
+	if len(data.GuideMessages) > 0 {
+		b.WriteString("\n=== OPCIONES PREDETERMINADAS PARA GUIAR LA VENTA ===\n")
+		for _, g := range data.GuideMessages {
+			fmt.Fprintf(&b, "- %s\n", g)
+		}
+	}
+
 	return b.String()
+}
+
+// EmpresaWhatsApp returns the cached sales WhatsApp number (digits only).
+func (s *Store) EmpresaWhatsApp() string {
+	if d := s.Get(); d != nil {
+		return d.EmpresaWhatsApp
+	}
+	return ""
+}
+
+// CharlaIncluida returns the cached description of what the course charla covers.
+func (s *Store) CharlaIncluida() string {
+	if d := s.Get(); d != nil {
+		return d.EmpresaCharlaCubre
+	}
+	return ""
+}
+
+// GuideMessages returns the cached lettered guide options.
+func (s *Store) GuideMessages() []string {
+	if d := s.Get(); d != nil {
+		return d.GuideMessages
+	}
+	return nil
 }
 
 func (s *Store) PrimaryMessages() []string {
@@ -385,6 +436,55 @@ func firstNonEmptyByKeys(row map[string]string, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+// extractEmpresaWhatsApp finds a sales WhatsApp number in the empresa rows.
+// It tries explicit columns first, then scans every value for a Colombian-format
+// phone number as fallback.
+func extractEmpresaWhatsApp(rows []map[string]string) string {
+	if val := extractFirstByKeys(rows,
+		"whatsappventas", "whatsapp", "whatsappdirector", "telefono",
+		"telefonoventas", "celular", "numero", "numerowhatsapp",
+	); val != "" {
+		return digitsOnly(val)
+	}
+	for _, row := range rows {
+		for _, v := range row {
+			if d := digitsOnly(v); len(d) >= 10 && len(d) <= 13 {
+				return d
+			}
+		}
+	}
+	return ""
+}
+
+func extractFirstByKeys(rows []map[string]string, keys ...string) string {
+	for _, row := range rows {
+		if val := firstNonEmptyByKeys(row, keys...); val != "" {
+			return val
+		}
+	}
+	return ""
+}
+
+func extractColumnValues(rows []map[string]string, keys ...string) []string {
+	var out []string
+	for _, row := range rows {
+		if val := firstNonEmptyByKeys(row, keys...); val != "" {
+			out = append(out, val)
+		}
+	}
+	return out
+}
+
+func digitsOnly(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 func compactTextList(values ...string) []string {
