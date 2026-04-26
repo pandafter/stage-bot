@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scudería St4ge — Academia de Pilotos Profesionales</title>
+  <meta name="description" content="El curso de piloto profesional más efectivo e integral de Colombia. 2 días de experiencia real en pista con coaching de pilotos Pro.">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;0,800;0,900;1,700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #090909; --surface: #121212; --surface2: #1a1a1a;
+      --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.12);
+      --gold: #f5c100; --gold-dim: rgba(245,193,0,0.12); --gold-glow: rgba(245,193,0,0.25);
+      --red: #e63200; --text: #f0ede5; --text-dim: #888; --text-dimmer: #444;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; overflow-x: hidden; }
+
+    nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; padding: 0 48px; height: 72px; background: rgba(9,9,9,0.9); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); transition: background .3s; }
+    .nav-logo img { height: 44px; object-fit: contain; display: block; }
+    .nav-links { display: flex; gap: 36px; list-style: none; }
+    .nav-links a { color: var(--text-dim); text-decoration: none; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; transition: color .2s; }
+    .nav-links a:hover { color: var(--text); }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 26px; font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; text-decoration: none; border: none; cursor: pointer; transition: all .2s; clip-path: polygon(10px 0%,100% 0%,calc(100% - 10px) 100%,0% 100%); }
+    .btn-gold { background: var(--gold); color: #000; }
+    .btn-gold:hover { background: #fff; transform: translateY(-1px); }
+    .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border2); clip-path: none; }
+    .btn-outline:hover { border-color: var(--gold); color: var(--gold); }
+    .btn-lg { padding: 16px 40px; font-size: 18px; }
+
+    .hero { min-height: 100vh; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 48px 80px; position: relative; overflow: hidden; }
+    .hero-bg { position: absolute; inset: 0; background: radial-gradient(ellipse at 60% 40%, rgba(245,193,0,.07) 0%, transparent 55%), radial-gradient(ellipse at 10% 80%, rgba(230,50,0,.05) 0%, transparent 40%), #090909; }
+    .hero-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.02) 1px, transparent 1px); background-size: 72px 72px; mask-image: radial-gradient(ellipse at 50% 60%, black 20%, transparent 75%); }
+    .hero-stripe { position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent 0%, var(--red) 20%, var(--gold) 50%, var(--red) 80%, transparent 100%); }
+    .hero-number { position: absolute; right: -20px; top: 50%; transform: translateY(-60%); font-family: 'Barlow Condensed', sans-serif; font-size: clamp(200px, 28vw, 400px); font-weight: 900; color: rgba(245,193,0,.04); line-height: 1; user-select: none; pointer-events: none; }
+    .hero-content { position: relative; z-index: 2; max-width: 860px; }
+    .hero-eyebrow { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; letter-spacing: .28em; text-transform: uppercase; color: var(--gold); margin-bottom: 20px; display: flex; align-items: center; gap: 14px; }
+    .hero-eyebrow::before { content: ''; display: block; width: 40px; height: 2px; background: var(--gold); }
+    .hero-title { font-family: 'Barlow Condensed', sans-serif; font-size: clamp(68px, 10vw, 148px); font-weight: 900; line-height: .9; text-transform: uppercase; letter-spacing: -.01em; margin-bottom: 28px; }
+    .hero-title em { font-style: italic; color: var(--gold); }
+    .hero-sub { font-size: 18px; color: var(--text-dim); max-width: 500px; line-height: 1.65; margin-bottom: 44px; }
+    .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 72px; }
+    .hero-scroll { position: absolute; bottom: 32px; left: 48px; font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--text-dimmer); display: flex; align-items: center; gap: 10px; }
+    .hero-scroll::before { content: ''; display: block; width: 1px; height: 40px; background: var(--text-dimmer); }
+
+    .countdown-row { display: flex; align-items: center; gap: 0; margin-bottom: 40px; flex-wrap: wrap; }
+    .countdown-label-outer { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--text-dimmer); margin-right: 24px; }
+    .cd-item { display: flex; flex-direction: column; align-items: center; background: var(--surface); border: 1px solid var(--border); padding: 14px 20px 10px; min-width: 70px; }
+    .cd-num { font-family: 'Barlow Condensed', sans-serif; font-size: 38px; font-weight: 900; color: var(--gold); line-height: 1; }
+    .cd-lbl { font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: var(--text-dimmer); margin-top: 3px; }
+    .cd-sep { font-family: 'Barlow Condensed', sans-serif; font-size: 28px; font-weight: 800; color: var(--gold); padding: 0 4px 8px; }
+
+    .stats-band { padding: 48px 48px; background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .stats-inner { max-width: 1280px; margin: 0 auto; display: flex; justify-content: space-between; }
+    .stat-item { text-align: center; flex: 1; padding: 0 32px; border-right: 1px solid var(--border); }
+    .stat-item:last-child { border-right: none; }
+    .stat-num { font-family: 'Barlow Condensed', sans-serif; font-size: 60px; font-weight: 900; color: var(--gold); line-height: 1; display: block; }
+    .stat-lbl { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .12em; margin-top: 4px; }
+
+    section { padding: 100px 48px; }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .sec-label { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: .3em; text-transform: uppercase; color: var(--gold); margin-bottom: 12px; display: flex; align-items: center; gap: 12px; }
+    .sec-label::before { content: ''; display: block; width: 28px; height: 1px; background: var(--gold); }
+    .sec-title { font-family: 'Barlow Condensed', sans-serif; font-size: clamp(38px, 5vw, 68px); font-weight: 900; text-transform: uppercase; line-height: 1; letter-spacing: -.01em; margin-bottom: 14px; }
+    .sec-sub { color: var(--text-dim); font-size: 16px; line-height: 1.65; max-width: 480px; margin-bottom: 56px; }
+
+    .includes-wrap { background: var(--surface); border: 1px solid var(--border); }
+    .includes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1px; background: var(--border); }
+    .inc-item { background: var(--surface); padding: 26px 22px; display: flex; gap: 14px; align-items: flex-start; transition: background .2s; }
+    .inc-item:hover { background: var(--surface2); }
+    .inc-icon { color: var(--gold); font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .inc-text { font-size: 14px; font-weight: 500; line-height: 1.4; }
+    .notice { background: rgba(230,50,0,.08); border: 1px solid rgba(230,50,0,.25); padding: 18px 22px; font-size: 13px; color: #ff6b4a; line-height: 1.7; margin-top: 1px; }
+    .notice strong { color: #ff8060; }
+
+    .dates-price-row { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
+    .date-cards { display: flex; flex-direction: column; gap: 12px; }
+    .date-card { background: var(--surface); border: 1px solid var(--border); padding: 28px 28px; display: flex; align-items: center; gap: 28px; position: relative; overflow: hidden; cursor: pointer; transition: border-color .2s; }
+    .date-card:hover { border-color: rgba(245,193,0,.4); }
+    .date-card.active { border-color: var(--gold); }
+    .date-card.active::after { content: 'PRÓXIMO'; position: absolute; top: 14px; right: 14px; background: var(--gold); color: #000; font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 800; letter-spacing: .15em; padding: 3px 8px; clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%); }
+    .date-days { font-family: 'Barlow Condensed', sans-serif; font-size: 52px; font-weight: 900; color: var(--gold); line-height: 1; min-width: 80px; }
+    .date-info-col .date-month { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; letter-spacing: .15em; text-transform: uppercase; color: var(--text-dim); }
+    .date-info-col .date-detail { font-size: 13px; color: var(--text-dimmer); margin-top: 4px; }
+    .price-stack { display: flex; flex-direction: column; gap: 12px; }
+    .price-card { background: var(--surface); border: 1px solid var(--border); padding: 32px 28px; position: relative; transition: border-color .2s; }
+    .price-card:hover { border-color: rgba(245,193,0,.4); }
+    .price-card.featured { border-color: var(--gold); background: linear-gradient(135deg, rgba(245,193,0,.06), var(--surface)); }
+    .price-card.featured::before { content: 'MÁS POPULAR'; position: absolute; top: -1px; left: 28px; background: var(--gold); color: #000; font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 800; letter-spacing: .15em; padding: 3px 10px; clip-path: polygon(0 0, 100% 0, calc(100% - 4px) 100%, 4px 100%); }
+    .price-row { display: flex; align-items: baseline; gap: 6px; }
+    .price-tag-label { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
+    .price-amount { font-family: 'Barlow Condensed', sans-serif; font-size: 42px; font-weight: 900; color: var(--gold); line-height: 1; }
+    .price-currency { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; color: var(--text-dim); }
+    .price-note { font-size: 13px; color: var(--text-dimmer); margin-top: 6px; }
+
+    .events-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; background: var(--border); }
+    .event-card { background: var(--surface); padding: 52px 44px; position: relative; overflow: hidden; cursor: pointer; transition: background .3s; min-height: 280px; }
+    .event-card:hover { background: var(--surface2); }
+    .event-card::after { content: ''; position: absolute; bottom: 0; left: 0; height: 2px; width: 0; background: var(--gold); transition: width .4s ease; }
+    .event-card:hover::after { width: 100%; }
+    .event-bg-num { position: absolute; right: -10px; bottom: -20px; font-family: 'Barlow Condensed', sans-serif; font-size: 120px; font-weight: 900; color: rgba(255,255,255,.03); line-height: 1; pointer-events: none; }
+    .event-type-label { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: .28em; text-transform: uppercase; color: var(--gold); margin-bottom: 14px; }
+    .event-title { font-family: 'Barlow Condensed', sans-serif; font-size: 38px; font-weight: 900; text-transform: uppercase; line-height: 1.05; margin-bottom: 14px; }
+    .event-desc { font-size: 14px; color: var(--text-dim); max-width: 320px; line-height: 1.65; }
+    .event-arrow { position: absolute; bottom: 36px; right: 36px; color: var(--gold); font-size: 24px; opacity: 0; transition: opacity .2s, transform .2s; }
+    .event-card:hover .event-arrow { opacity: 1; transform: translate(4px, -4px); }
+
+    .testimonials-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .video-card { background: var(--surface); border: 1px solid var(--border); overflow: hidden; text-decoration: none; color: inherit; display: block; transition: border-color .2s, transform .2s; }
+    .video-card:hover { border-color: var(--gold); transform: translateY(-3px); }
+    .video-thumb { aspect-ratio: 9/16; max-height: 380px; background: var(--surface2); position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .vthumb-pattern { position: absolute; inset: 0; background: repeating-linear-gradient(-45deg, rgba(255,255,255,.02) 0, rgba(255,255,255,.02) 1px, transparent 1px, transparent 14px); }
+    .vthumb-glow { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(245,193,0,.06), transparent 70%); }
+    .play-btn { width: 68px; height: 68px; background: var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; position: relative; z-index: 2; transition: transform .2s; }
+    .video-card:hover .play-btn { transform: scale(1.12); }
+    .play-icon { width: 0; height: 0; border-top: 12px solid transparent; border-bottom: 12px solid transparent; border-left: 22px solid #000; margin-left: 5px; }
+    .video-label { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,.7)); padding: 24px 16px 14px; font-family: 'Barlow Condensed', sans-serif; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); }
+    .video-info { padding: 20px 18px; }
+    .video-title { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; }
+    .video-meta { font-size: 12px; color: var(--text-dim); }
+
+    .gallery-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+    .gal-item { aspect-ratio: 1; background: var(--surface2); overflow: hidden; cursor: pointer; position: relative; }
+    .gal-item:first-child { grid-column: span 2; grid-row: span 2; aspect-ratio: auto; min-height: 320px; }
+    .gal-item:nth-child(6) { grid-column: span 2; }
+    .gal-ph { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: repeating-linear-gradient(-45deg, var(--surface2) 0, var(--surface2) 9px, var(--surface) 9px, var(--surface) 18px); transition: filter .2s; }
+    .gal-item:hover .gal-ph { filter: brightness(1.4); }
+    .gal-ph span { font-family: monospace; font-size: 10px; color: var(--text-dimmer); text-align: center; padding: 0 16px; }
+    .gal-icon { font-size: 28px; color: var(--text-dimmer); }
+
+    .instructors-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 2px; background: var(--border); }
+    .instr-card { background: var(--surface); overflow: hidden; transition: background .2s; }
+    .instr-card:hover { background: var(--surface2); }
+    .instr-photo { aspect-ratio: 3/4; max-height: 320px; background: var(--surface2); position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .instr-photo-ph { position: absolute; inset: 0; background: repeating-linear-gradient(-45deg, var(--surface2) 0, var(--surface2) 9px, var(--surface) 9px, var(--surface) 18px); display: flex; align-items: center; justify-content: center; }
+    .instr-photo-ph span { font-family: monospace; font-size: 11px; color: var(--text-dimmer); }
+    .instr-info { padding: 24px 22px; border-top: 1px solid var(--border); }
+    .instr-name { font-family: 'Barlow Condensed', sans-serif; font-size: 24px; font-weight: 800; text-transform: uppercase; line-height: 1; margin-bottom: 4px; }
+    .instr-role { font-size: 11px; color: var(--gold); letter-spacing: .18em; text-transform: uppercase; margin-bottom: 12px; }
+    .instr-bio { font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+
+    .faq-wrap { max-width: 820px; }
+    .faq-item { border-bottom: 1px solid var(--border); }
+    .faq-q { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; cursor: pointer; font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; transition: color .2s; user-select: none; }
+    .faq-q:hover { color: var(--gold); }
+    .faq-ico { font-size: 22px; color: var(--gold); transition: transform .25s; flex-shrink: 0; margin-left: 16px; }
+    .faq-item.open .faq-ico { transform: rotate(45deg); }
+    .faq-a { max-height: 0; overflow: hidden; transition: max-height .35s ease, padding .3s; font-size: 15px; color: var(--text-dim); line-height: 1.75; }
+    .faq-item.open .faq-a { max-height: 400px; padding-bottom: 22px; }
+
+    .map-wrap { height: 420px; background: var(--surface); border: 1px solid var(--border); overflow: hidden; position: relative; }
+    .map-ph { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: repeating-linear-gradient(-45deg, var(--surface2) 0, var(--surface2) 9px, var(--surface) 9px, var(--surface) 18px); }
+    .map-ph span { font-family: 'Barlow Condensed', sans-serif; font-size: 24px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text-dim); }
+    .map-ph small { font-size: 13px; color: var(--text-dimmer); }
+    .map-marker { font-size: 40px; }
+
+    .bot-bubble { position: fixed; bottom: 28px; right: 28px; z-index: 300; }
+    .bot-toggle { width: 62px; height: 62px; background: var(--gold); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; clip-path: polygon(10px 0%, 100% 0%, calc(100% - 10px) 100%, 0% 100%); transition: transform .2s; font-size: 26px; }
+    .bot-toggle:hover { transform: scale(1.07); }
+    .bot-badge { position: absolute; top: -4px; right: -4px; width: 18px; height: 18px; background: var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; font-family: 'Barlow Condensed', sans-serif; }
+    .bot-win { position: absolute; bottom: 74px; right: 0; width: 340px; background: var(--surface); border: 1px solid var(--border2); flex-direction: column; overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,.6); display: none; }
+    .bot-win.open { display: flex; }
+    .bot-head { background: var(--gold); color: #000; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; }
+    .bot-head-left { display: flex; align-items: center; gap: 10px; }
+    .bot-head-left img { height: 28px; object-fit: contain; }
+    .bot-head-title { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+    .bot-head-sub { font-size: 11px; font-weight: 500; opacity: .7; }
+    .bot-close-btn { background: none; border: none; cursor: pointer; font-size: 20px; color: rgba(0,0,0,.6); }
+    .bot-msgs { flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; max-height: 300px; }
+    .bot-msg { max-width: 85%; padding: 10px 13px; font-size: 13px; line-height: 1.5; border-radius: 2px; }
+    .bot-msg.bot { background: var(--surface2); align-self: flex-start; border-left: 2px solid var(--gold); }
+    .bot-msg.user { background: var(--gold); color: #000; align-self: flex-end; font-weight: 500; }
+    .bot-channels { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--border); }
+    .bot-channel { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); text-decoration: none; font-size: 13px; transition: border-color .2s; }
+    .bot-channel:hover { border-color: var(--gold); }
+    .bot-channel-ico { font-size: 18px; }
+
+    footer { background: var(--surface); border-top: 1px solid var(--border); padding: 64px 48px; }
+    .footer-inner { max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 48px; }
+    .footer-brand img { height: 44px; margin-bottom: 16px; }
+    .footer-tagline { font-size: 14px; color: var(--text-dim); line-height: 1.7; max-width: 240px; }
+    .footer-col h4 { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: .25em; text-transform: uppercase; color: var(--gold); margin-bottom: 18px; }
+    .footer-col ul { list-style: none; }
+    .footer-col li { margin-bottom: 10px; }
+    .footer-col a { color: var(--text-dim); text-decoration: none; font-size: 14px; transition: color .2s; }
+    .footer-col a:hover { color: var(--text); }
+    .footer-bottom { max-width: 1280px; margin: 40px auto 0; padding-top: 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 12px; color: var(--text-dimmer); }
+
+    @media (max-width: 900px) {
+      nav { padding: 0 24px; }
+      .nav-links { display: none; }
+      section { padding: 64px 24px; }
+      .hero { padding: 0 24px 64px; }
+      .stats-band { padding: 36px 24px; }
+      .stats-inner { flex-wrap: wrap; gap: 28px; justify-content: center; }
+      .stat-item { border-right: none; min-width: 120px; }
+      .dates-price-row { grid-template-columns: 1fr; }
+      .events-grid { grid-template-columns: 1fr; }
+      .gallery-grid { grid-template-columns: repeat(2, 1fr); }
+      .gal-item:first-child { grid-column: span 2; }
+      .footer-inner { grid-template-columns: 1fr 1fr; }
+      footer { padding: 48px 24px; }
+      .footer-bottom { flex-direction: column; gap: 8px; }
+      .bot-win { width: 300px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo"><img src="/inscripcion/logo.jpg" alt="Scudería St4ge"></a>
+  <ul class="nav-links">
+    <li><a href="#curso">El Curso</a></li>
+    <li><a href="#eventos">Eventos</a></li>
+    <li><a href="#testimonios">Testimonios</a></li>
+    <li><a href="#instructores">Instructores</a></li>
+    <li><a href="#faq">FAQ</a></li>
+  </ul>
+  <a href="/inscripcion" class="btn btn-gold">Inscríbete →</a>
+</nav>
+
+<section class="hero" id="inicio">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+  <div class="hero-stripe"></div>
+  <div class="hero-number">4</div>
+  <div class="hero-content">
+    <div class="hero-eyebrow">Colombia · Karting Profesional</div>
+    <h1 class="hero-title">Conviértete<br>en <em>Piloto</em><br>Profesional</h1>
+    <p class="hero-sub">El curso más efectivo e integral de Colombia. 2 días de experiencia real en pista con coaching de pilotos Pro.</p>
+    <div class="countdown-row">
+      <span class="countdown-label-outer">Próximo curso en</span>
+      <div id="countdown" style="display:flex;align-items:center;gap:0;">
+        <div class="cd-item"><span class="cd-num" id="cd-d">00</span><span class="cd-lbl">Días</span></div>
+        <span class="cd-sep">:</span>
+        <div class="cd-item"><span class="cd-num" id="cd-h">00</span><span class="cd-lbl">Horas</span></div>
+        <span class="cd-sep">:</span>
+        <div class="cd-item"><span class="cd-num" id="cd-m">00</span><span class="cd-lbl">Min</span></div>
+        <span class="cd-sep">:</span>
+        <div class="cd-item"><span class="cd-num" id="cd-s">00</span><span class="cd-lbl">Seg</span></div>
+      </div>
+    </div>
+    <div class="hero-actions">
+      <a href="/inscripcion" class="btn btn-gold btn-lg">🏁 Reservar cupo ahora</a>
+      <a href="#curso" class="btn btn-outline btn-lg">Ver qué incluye</a>
+    </div>
+  </div>
+  <div class="hero-scroll">Scroll para explorar</div>
+</section>
+
+<div class="stats-band">
+  <div class="stats-inner">
+    <div class="stat-item"><span class="stat-num" data-target="200">0</span><span class="stat-lbl">Pilotos formados</span></div>
+    <div class="stat-item"><span class="stat-num" data-target="3">0</span><span class="stat-lbl">Años de experiencia</span></div>
+    <div class="stat-item"><span class="stat-num" data-target="98">0</span><span class="stat-lbl">% Satisfacción</span></div>
+    <div class="stat-item"><span class="stat-num" data-target="12">0</span><span class="stat-lbl">Eventos al año</span></div>
+  </div>
+</div>
+
+<section id="curso">
+  <div class="container">
+    <div class="sec-label">El curso</div>
+    <h2 class="sec-title">Curso de Piloto<br>Profesional</h2>
+    <p class="sec-sub">Todo lo que necesitas para vivir la experiencia completa. Sin costos ocultos.</p>
+    <div class="includes-wrap">
+      <div class="includes-grid">
+        <div class="inc-item"><span class="inc-icon">🏎</span><div class="inc-text">2 Días de experiencia en pista</div></div>
+        <div class="inc-item"><span class="inc-icon">🏆</span><div class="inc-text">Diploma Certificado oficial</div></div>
+        <div class="inc-item"><span class="inc-icon">🥤</span><div class="inc-text">Refrigerio incluido</div></div>
+        <div class="inc-item"><span class="inc-icon">🪖</span><div class="inc-text">Indumentaria de seguridad completa</div></div>
+        <div class="inc-item"><span class="inc-icon">🎯</span><div class="inc-text">Coaching por piloto profesional</div></div>
+        <div class="inc-item"><span class="inc-icon">📊</span><div class="inc-text">Asesoría deportiva personalizada</div></div>
+        <div class="inc-item"><span class="inc-icon">⛽</span><div class="inc-text">Consumibles del kart (llantas, gasolina, aceite, frenos)</div></div>
+        <div class="inc-item"><span class="inc-icon">🏁</span><div class="inc-text">Derecho de pista completo</div></div>
+        <div class="inc-item"><span class="inc-icon">🔧</span><div class="inc-text">Preparador mecánico asignado</div></div>
+        <div class="inc-item"><span class="inc-icon">🚑</span><div class="inc-text">Seguro médico</div></div>
+        <div class="inc-item"><span class="inc-icon">👨‍🏭</span><div class="inc-text">Asistencia en pista permanente</div></div>
+        <div class="inc-item"><span class="inc-icon">🛞</span><div class="inc-text">Kart profesional de alta performance</div></div>
+      </div>
+      <div class="notice"><strong>⚠️ Requisito:</strong> Peso máximo 105 kg. No se realizan devoluciones ni reprogramaciones a petición del alumno durante la semana del evento. El piloto asume responsabilidad por daños causados al equipamiento.</div>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:0;" id="fechas">
+  <div class="container">
+    <div class="dates-price-row">
+      <div>
+        <div class="sec-label">Fechas disponibles</div>
+        <h2 class="sec-title">Próximas<br>Fechas</h2>
+        <p class="sec-sub" style="margin-bottom:32px;">Sujeto a disponibilidad de escenario. ¡Cupos limitados!</p>
+        <div class="date-cards">
+          <div class="date-card active">
+            <div class="date-days">9 · 10</div>
+            <div class="date-info-col">
+              <div class="date-month">Mayo 2026</div>
+              <div class="date-detail">Sábado y Domingo · 2 días completos</div>
+            </div>
+          </div>
+          <div class="date-card">
+            <div class="date-days">23 · 24</div>
+            <div class="date-info-col">
+              <div class="date-month">Mayo 2026</div>
+              <div class="date-detail">Sábado y Domingo · 2 días completos</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="sec-label">Inversión</div>
+        <h2 class="sec-title">Precios</h2>
+        <p class="sec-sub" style="margin-bottom:32px;">Reserva tu cupo desde $150.000 y asegura tu lugar.</p>
+        <div class="price-stack">
+          <div class="price-card">
+            <div class="price-tag-label">Reserva de cupo</div>
+            <div class="price-row"><span class="price-currency">$</span><span class="price-amount">150.000</span></div>
+            <div class="price-note">Abono mínimo para asegurar tu lugar</div>
+          </div>
+          <div class="price-card featured">
+            <div class="price-tag-label">Precio Preventa</div>
+            <div class="price-row"><span class="price-currency">$</span><span class="price-amount">730.000</span></div>
+            <div class="price-note">Cupos limitados — precio especial anticipado</div>
+          </div>
+          <div class="price-card">
+            <div class="price-tag-label">Precio Full</div>
+            <div class="price-row"><span class="price-currency">$</span><span class="price-amount">890.000</span></div>
+            <div class="price-note">Precio regular sin reserva anticipada</div>
+          </div>
+        </div>
+        <div style="margin-top:24px;">
+          <a href="/inscripcion" class="btn btn-gold btn-lg" style="width:100%;justify-content:center;">Inscribirme ahora →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="eventos" style="background:var(--surface);padding-top:100px;padding-bottom:100px;">
+  <div class="container">
+    <div class="sec-label">Lo que hacemos</div>
+    <h2 class="sec-title">Nuestros<br>Eventos</h2>
+    <p class="sec-sub">Más que un curso — una comunidad de pilotos apasionados.</p>
+    <div class="events-grid">
+      <div class="event-card">
+        <div class="event-bg-num">01</div>
+        <div class="event-type-label">Programa principal</div>
+        <div class="event-title">Curso de Piloto<br>Profesional</div>
+        <div class="event-desc">El programa más completo de Colombia. 2 días intensivos de formación real en pista con todos los recursos incluidos.</div>
+        <span class="event-arrow">↗</span>
+      </div>
+      <div class="event-card">
+        <div class="event-bg-num">02</div>
+        <div class="event-type-label">Open event</div>
+        <div class="event-title">Trackdays<br>Abiertos</div>
+        <div class="event-desc">Días de pista abiertos para todos los niveles. Rueda a tu ritmo, mejora tus tiempos y conecta con la comunidad.</div>
+        <span class="event-arrow">↗</span>
+      </div>
+      <div class="event-card">
+        <div class="event-bg-num">03</div>
+        <div class="event-type-label">Social · Networking</div>
+        <div class="event-title">Brunch<br>de Pilotos</div>
+        <div class="event-desc">Momentos exclusivos fuera de la pista. Comparte experiencias con otros pilotos en un ambiente premium y relajado.</div>
+        <span class="event-arrow">↗</span>
+      </div>
+      <div class="event-card">
+        <div class="event-bg-num">04</div>
+        <div class="event-type-label">Competencia</div>
+        <div class="event-title">Carreras &<br>Campeonatos</div>
+        <div class="event-desc">¿Ya tienes el nivel? Participa en nuestras competencias internas y mídete con los mejores pilotos de la academia.</div>
+        <span class="event-arrow">↗</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="testimonios">
+  <div class="container">
+    <div class="sec-label">Testimonios</div>
+    <h2 class="sec-title">Lo dicen<br>nuestros pilotos</h2>
+    <p class="sec-sub">Experiencias reales de quienes ya vivieron el curso.</p>
+    <div class="testimonials-grid">
+      <a href="https://www.instagram.com/reel/DQLA7IyjVBh/" target="_blank" rel="noopener" class="video-card">
+        <div class="video-thumb">
+          <div class="vthumb-pattern"></div>
+          <div class="vthumb-glow"></div>
+          <div class="play-btn"><div class="play-icon"></div></div>
+          <div class="video-label">📱 Ver en Instagram</div>
+        </div>
+        <div class="video-info">
+          <div class="video-title">Testimonio piloto #1</div>
+          <div class="video-meta">Anécdotas reales del curso · Instagram Reel</div>
+        </div>
+      </a>
+      <a href="https://www.instagram.com/reel/DJSQPCXxkVF/" target="_blank" rel="noopener" class="video-card">
+        <div class="video-thumb">
+          <div class="vthumb-pattern"></div>
+          <div class="vthumb-glow"></div>
+          <div class="play-btn"><div class="play-icon"></div></div>
+          <div class="video-label">📱 Ver en Instagram</div>
+        </div>
+        <div class="video-info">
+          <div class="video-title">Testimonio piloto #2</div>
+          <div class="video-meta">Anécdotas reales del curso · Instagram Reel</div>
+        </div>
+      </a>
+      <div class="video-card" style="cursor:default;">
+        <div class="video-thumb" style="background:var(--surface2);">
+          <div class="vthumb-pattern"></div>
+          <div style="position:relative;z-index:2;text-align:center;padding:24px;">
+            <div style="font-size:40px;margin-bottom:12px;">⭐⭐⭐⭐⭐</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;text-transform:uppercase;margin-bottom:8px;">"La mejor inversión que he hecho en el deporte"</div>
+            <div style="font-size:13px;color:var(--text-dim);">— Alumno del programa</div>
+          </div>
+        </div>
+        <div class="video-info">
+          <div class="video-title">Reseña del programa</div>
+          <div class="video-meta">Experiencia de piloto graduado</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:0;" id="galeria">
+  <div class="container">
+    <div class="sec-label">Galería</div>
+    <h2 class="sec-title">En pista</h2>
+    <p class="sec-sub" style="margin-bottom:32px;">Imágenes de nuestros cursos y eventos anteriores.</p>
+    <div class="gallery-grid">
+      <div class="gal-item"><div class="gal-ph"><span class="gal-icon">📷</span><span>foto principal<br>pista / acción</span></div></div>
+      <div class="gal-item"><div class="gal-ph"><span class="gal-icon">📷</span><span>foto kart</span></div></div>
+      <div class="gal-item"><div class="gal-ph"><span class="gal-icon">📷</span><span>foto piloto</span></div></div>
+      <div class="gal-item"><div class="gal-ph"><span class="gal-icon">📷</span><span>foto equipo</span></div></div>
+      <div class="gal-item"><div class="gal-ph"><span class="gal-icon">📷</span><span>foto paddock</span></div></div>
+      <div class="gal-item" style="grid-column:span 2;aspect-ratio:auto;min-height:180px;"><div class="gal-ph"><span class="gal-icon">📷</span><span>foto grupal / entrega diplomas</span></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="instructores" style="background:var(--surface);">
+  <div class="container">
+    <div class="sec-label">El equipo</div>
+    <h2 class="sec-title">Instructores</h2>
+    <p class="sec-sub">Pilotos profesionales con experiencia en competencia real.</p>
+    <div class="instructors-grid">
+      <div class="instr-card">
+        <div class="instr-photo"><div class="instr-photo-ph"><span>foto instructor</span></div></div>
+        <div class="instr-info">
+          <div class="instr-name">Andrés Camilo Melo</div>
+          <div class="instr-role">Fundador · Piloto Pro</div>
+          <div class="instr-bio">Director de Scudería St4ge. Piloto profesional con amplia trayectoria en karting nacional. Tu guía principal durante el programa.</div>
+        </div>
+      </div>
+      <div class="instr-card">
+        <div class="instr-photo"><div class="instr-photo-ph"><span>foto instructor 2</span></div></div>
+        <div class="instr-info">
+          <div class="instr-name">Instructor Pista</div>
+          <div class="instr-role">Coach · Preparador Mecánico</div>
+          <div class="instr-bio">Especialista técnico en preparación de karts y análisis de rendimiento en pista. Acompañamiento personalizado durante los 2 días.</div>
+        </div>
+      </div>
+      <div class="instr-card">
+        <div class="instr-photo"><div class="instr-photo-ph"><span>foto instructor 3</span></div></div>
+        <div class="instr-info">
+          <div class="instr-name">Coach Deportivo</div>
+          <div class="instr-role">Asesor Deportivo</div>
+          <div class="instr-bio">Experto en técnica de conducción y desarrollo de pilotos. Análisis de telemetría y retroalimentación en tiempo real.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="container">
+    <div class="sec-label">Preguntas frecuentes</div>
+    <h2 class="sec-title">FAQ</h2>
+    <div class="faq-wrap">
+      <div class="faq-item">
+        <div class="faq-q">¿Necesito experiencia previa en karting?<span class="faq-ico">+</span></div>
+        <div class="faq-a">No. El curso está diseñado tanto para principiantes como para personas con experiencia previa. El coaching se adapta a tu nivel desde el primer momento.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">¿Cómo confirmo mi reserva?<span class="faq-ico">+</span></div>
+        <div class="faq-a">Realiza el pago mínimo de $150.000 por Bancolombia, Nequi o Bold (tarjeta de crédito), completa el formulario de inscripción y sube tu comprobante. Te contactaremos para confirmar tu cupo.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">¿Qué debo llevar el día del curso?<span class="faq-ico">+</span></div>
+        <div class="faq-a">Ropa cómoda de deporte, zapatos cerrados de suela plana, hidratación personal y mucha energía. Todo el equipamiento de seguridad (casco, cuello, overol, guantes) está incluido.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">¿Cuál es el peso máximo permitido?<span class="faq-ico">+</span></div>
+        <div class="faq-a">El peso máximo es de 105 kg. Este requisito es por seguridad técnica del kart profesional y no tiene excepciones.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">¿Se pueden hacer devoluciones o reprogramaciones?<span class="faq-ico">+</span></div>
+        <div class="faq-a">No se realizan devoluciones ni reprogramaciones a petición del alumno durante la semana del evento. Te recomendamos revisar bien tu disponibilidad antes de inscribirte.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">¿El seguro médico cubre todo el evento?<span class="faq-ico">+</span></div>
+        <div class="faq-a">Sí, el seguro médico está incluido en el costo del curso y cubre toda la duración del evento en pista. Sin embargo, el piloto es responsable de los daños ocasionados al kart o equipamiento por conducción imprudente.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">¿En qué pista se realiza el curso?<span class="faq-ico">+</span></div>
+        <div class="faq-a">El curso se realiza en el Autódromo de Tocancipá. La ubicación exacta se confirma al momento de la inscripción.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:0;" id="ubicacion">
+  <div class="container">
+    <div class="sec-label">Ubicación</div>
+    <h2 class="sec-title">Dónde nos<br>encontramos</h2>
+    <p class="sec-sub" style="margin-bottom:32px;">Autódromo de Tocancipá · Cundinamarca, Colombia.</p>
+    <div class="map-wrap">
+      <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3974.876!2d-73.9105!3d4.9685!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNMKwNTgnMDYuNiJOIDczwrA1NCczNy44Ilc!5e0!3m2!1ses!2sco!4v1700000000000"
+              width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+    </div>
+  </div>
+</section>
+
+<section style="background:var(--surface);text-align:center;padding:80px 48px;">
+  <div class="container">
+    <div class="sec-label" style="justify-content:center;">¿Listo para arrancar?</div>
+    <h2 class="sec-title" style="font-size:clamp(48px,7vw,96px);text-align:center;margin-bottom:16px;">Tu cupo te<br>está esperando</h2>
+    <p style="color:var(--text-dim);font-size:17px;margin-bottom:40px;">Reserva desde $150.000 y asegura tu lugar en el próximo curso.</p>
+    <a href="/inscripcion" class="btn btn-gold btn-lg" style="font-size:20px;padding:20px 56px;">🏁 Quiero inscribirme</a>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <img src="/inscripcion/logo.jpg" alt="Scudería St4ge">
+      <p class="footer-tagline">El curso de piloto profesional más efectivo e integral de Colombia.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Programa</h4>
+      <ul>
+        <li><a href="#curso">Qué incluye</a></li>
+        <li><a href="#fechas">Fechas</a></li>
+        <li><a href="/inscripcion">Inscripción</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Eventos</h4>
+      <ul>
+        <li><a href="#eventos">Trackdays</a></li>
+        <li><a href="#eventos">Brunch</a></li>
+        <li><a href="#eventos">Carreras</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Contacto</h4>
+      <ul>
+        <li><a href="https://wa.me/573059456266">WhatsApp: 305 945 6266</a></li>
+        <li><a href="https://www.instagram.com/scuderia_stage4" target="_blank" rel="noopener">@scuderia_stage4</a></li>
+        <li><a href="#faq">Preguntas frecuentes</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 Scudería St4ge · Todos los derechos reservados</span>
+    <span>Tocancipá · Karting Profesional</span>
+  </div>
+</footer>
+
+<div class="bot-bubble" id="botBubble">
+  <div class="bot-win" id="botWin">
+    <div class="bot-head">
+      <div class="bot-head-left">
+        <img src="/inscripcion/logo.jpg" alt="St4ge">
+        <div><div class="bot-head-title">St4ge Bot</div><div class="bot-head-sub">Estamos para responderte</div></div>
+      </div>
+      <button class="bot-close-btn" id="botClose">✕</button>
+    </div>
+    <div class="bot-msgs" id="botMsgs">
+      <div class="bot-msg bot">¡Hola! 🏎 Soy el equipo de Scudería St4ge. Para resolver tus dudas en vivo, escríbenos por WhatsApp o Instagram — respondemos en minutos.</div>
+      <div class="bot-msg bot">También puedes <a href="/inscripcion" style="color:var(--gold);">reservar tu cupo aquí mismo</a> 🏁</div>
+    </div>
+    <div class="bot-channels">
+      <a class="bot-channel" href="https://wa.me/573059456266?text=Hola!%20Quiero%20info%20del%20curso%20de%20piloto" target="_blank" rel="noopener"><span class="bot-channel-ico">💬</span><span>WhatsApp · 305 945 6266</span></a>
+      <a class="bot-channel" href="https://www.instagram.com/scuderia_stage4" target="_blank" rel="noopener"><span class="bot-channel-ico">📸</span><span>Instagram · @scuderia_stage4</span></a>
+      <a class="bot-channel" href="/inscripcion"><span class="bot-channel-ico">🏁</span><span>Ir al formulario de inscripción</span></a>
+    </div>
+  </div>
+  <button class="bot-toggle" id="botToggle">🏎</button>
+  <div class="bot-badge">1</div>
+</div>
+
+<script>
+(function(){
+  const target = new Date('2026-05-09T07:00:00');
+  function update(){
+    const now = new Date();
+    const diff = target - now;
+    if(diff <= 0){ document.getElementById('countdown').innerHTML = '<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:28px;color:var(--gold);font-weight:800;">¡EVENTO EN CURSO!</span>'; return; }
+    const d = Math.floor(diff/86400000);
+    const h = Math.floor((diff%86400000)/3600000);
+    const m = Math.floor((diff%3600000)/60000);
+    const s = Math.floor((diff%60000)/1000);
+    document.getElementById('cd-d').textContent = String(d).padStart(2,'0');
+    document.getElementById('cd-h').textContent = String(h).padStart(2,'0');
+    document.getElementById('cd-m').textContent = String(m).padStart(2,'0');
+    document.getElementById('cd-s').textContent = String(s).padStart(2,'0');
+  }
+  update(); setInterval(update,1000);
+})();
+
+(function(){
+  const els = document.querySelectorAll('[data-target]');
+  const obs = new IntersectionObserver(entries=>{
+    entries.forEach(e=>{
+      if(!e.isIntersecting) return;
+      const el = e.target;
+      const target = +el.dataset.target;
+      let current = 0;
+      const step = Math.ceil(target/60);
+      const timer = setInterval(()=>{
+        current = Math.min(current+step, target);
+        el.textContent = current;
+        if(current>=target){ el.textContent = target; clearInterval(timer); }
+      },24);
+      obs.unobserve(el);
+    });
+  },{threshold:.3});
+  els.forEach(el=>obs.observe(el));
+})();
+
+document.querySelectorAll('.faq-q').forEach(q=>{
+  q.addEventListener('click',()=>{
+    const item = q.closest('.faq-item');
+    const wasOpen = item.classList.contains('open');
+    document.querySelectorAll('.faq-item.open').forEach(i=>i.classList.remove('open'));
+    if(!wasOpen) item.classList.add('open');
+  });
+});
+
+(function(){
+  const toggle = document.getElementById('botToggle');
+  const win = document.getElementById('botWin');
+  const close = document.getElementById('botClose');
+  const badge = document.querySelector('.bot-badge');
+  toggle.addEventListener('click',()=>{
+    win.classList.toggle('open');
+    if(badge) badge.style.display = 'none';
+  });
+  close.addEventListener('click',()=>win.classList.remove('open'));
+})();
+
+window.addEventListener('scroll',()=>{
+  document.querySelector('nav').style.background = window.scrollY > 40 ? 'rgba(9,9,9,0.97)' : 'rgba(9,9,9,0.9)';
+});
+</script>
+</body>
+</html>

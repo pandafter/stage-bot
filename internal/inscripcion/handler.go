@@ -29,11 +29,14 @@ import (
 //go:embed form.html
 var formHTML string
 
+//go:embed landing.html
+var landingHTML string
+
 //go:embed success.html
 var successHTML string
 
-//go:embed assets/logo.jpg
-var logoJPG []byte
+	//go:embed assets/logo.jpg
+	var logoJPG []byte
 
 // Plan describes a registration plan.
 type Plan struct {
@@ -47,7 +50,6 @@ type Plan struct {
 
 var Plans = []Plan{
 	{ID: "preventa", Label: "Preventa individual / parejas", PriceCOP: 730000, BoldLink: "https://checkout.bold.co/payment/LNK_VFE303JBR9", IsPreventa: true},
-	{ID: "grupo10", Label: "Grupo de 10 personas (precio por persona)", PriceCOP: 690000, Note: "Aplica a grupos de 10+"},
 	{ID: "normal", Label: "Tarifa estándar (sin descuento)", PriceCOP: 890000},
 	{ID: "reserva", Label: "Solo reserva (asistir luego)", PriceCOP: 150000, BoldLink: "https://checkout.bold.co/payment/LNK_UQU9WHRQDT"},
 }
@@ -95,6 +97,12 @@ func NewHandler(cfg Config, repo *storage.InscripcionesRepo, logger *zap.Logger)
 	}
 	_ = os.MkdirAll(cfg.UploadsDir, 0o755)
 	return &Handler{cfg: cfg, repo: repo, logger: logger}
+}
+
+// Serve Landing
+func (h *Handler) ServeLanding(c *fiber.Ctx) error {
+	c.Set("Content-Type", "text/html; charset=utf-8")
+	return c.SendString(landingHTML)
 }
 
 // ServeForm renders the public registration form.

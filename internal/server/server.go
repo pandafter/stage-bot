@@ -109,6 +109,7 @@ func (s *Server) setupRoutes(deps Dependencies) {
 		s.app.Get("/inscripcion", ih.ServeForm)
 		s.app.Post("/inscripcion", ih.Submit)
 		s.app.Get("/inscripcion/logo.jpg", ih.ServeLogo)
+		s.app.Get("/", ih.ServeLanding)
 	}
 
 	if deps.Leads != nil && deps.Conversation != nil {
