@@ -1,39 +1,106 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Inscripción confirmada · Scuderia St4ge</title>
-<style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a14;color:#f5f5fa;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-  .card{background:linear-gradient(180deg,#15152a,#1f1f3a);border:1px solid #2a2a4a;border-radius:18px;padding:48px 40px;max-width:520px;width:100%;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.4)}
-  .check{width:64px;height:64px;border-radius:50%;background:rgba(62,196,119,.15);color:#3ec477;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:32px;font-weight:700}
-  h1{font-size:22px;margin-bottom:6px}
-  .sub{color:#9999b8;font-size:14px;margin-bottom:24px}
-  .row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #2a2a4a;font-size:14px}
-  .row:last-child{border-bottom:0}
-  .lbl{color:#9999b8}
-  .val{font-weight:600;color:#fff}
-  .id{font-family:monospace;font-size:13px;color:#ffb800}
-  .status{margin-top:18px;padding:14px;background:rgba(62,196,119,.08);border:1px solid rgba(62,196,119,.25);border-radius:10px;color:#3ec477;font-size:13px}
-  a.btn{display:inline-block;margin-top:24px;padding:12px 24px;background:#ffb800;color:#0a0a14;text-decoration:none;border-radius:10px;font-weight:700;font-size:14px}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cupo Reservado — Scudería St4ge</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;700;800;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#090909; --surface:#121212; --surface2:#1a1a1a;
+      --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.14);
+      --gold:#f5c100; --green:#22c55e;
+      --text:#f0ede5; --text-dim:#888; --text-dimmer:#444;
+    }
+    body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; min-height:100vh; }
+    nav { display:flex; align-items:center; justify-content:space-between; padding:0 48px; height:72px; background:rgba(9,9,9,.95); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:100; backdrop-filter:blur(20px); }
+    .nav-back { color:var(--text-dim); text-decoration:none; font-size:13px; letter-spacing:.08em; }
+    .nav-back:hover { color:var(--gold); }
+    .nav-logo img { height:44px; object-fit:contain; display:block; }
+    .nav-step { font-family:'Barlow Condensed',sans-serif; font-size:13px; letter-spacing:.15em; text-transform:uppercase; color:var(--text-dimmer); }
+
+    .wrap { max-width:720px; margin:0 auto; padding:64px 24px; text-align:center; }
+    .success-icon { font-size:64px; margin-bottom:24px; }
+    .success-title { font-family:'Barlow Condensed',sans-serif; font-size:56px; font-weight:900; text-transform:uppercase; color:var(--gold); margin-bottom:12px; line-height:1; }
+    .success-sub { font-size:16px; color:var(--text-dim); margin-bottom:40px; line-height:1.7; }
+
+    .summary { background:var(--surface); border:1px solid var(--border); padding:24px; margin-bottom:32px; text-align:left; }
+    .summary-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border); font-size:14px; }
+    .summary-row:last-child { border-bottom:0; }
+    .summary-row span:first-child { color:var(--text-dim); }
+    .summary-row span:last-child { color:var(--text); font-weight:600; }
+    .summary-row .id { font-family:monospace; color:var(--gold); font-size:12px; }
+
+    .payment-final { display:flex; flex-direction:column; gap:16px; max-width:560px; margin:0 auto; text-align:left; }
+    .pay-final-card { border:1px solid var(--border2); background:var(--surface); padding:28px; }
+    .pay-final-card.featured { border-color:var(--gold); background:rgba(245,193,0,.05); }
+    .pay-final-title { font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:800; text-transform:uppercase; margin-bottom:10px; }
+    .pay-final-detail { font-size:14px; color:var(--text-dim); line-height:1.8; }
+    .pay-final-detail strong { color:var(--text); }
+    .bold-btn { display:flex; align-items:center; justify-content:center; gap:10px; background:var(--gold); color:#000; padding:18px 32px; font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; text-decoration:none; clip-path:polygon(14px 0%,100% 0%,calc(100% - 14px) 100%,0% 100%); transition:all .2s; margin-top:16px; }
+    .bold-btn:hover { background:#fff; transform:translateY(-2px); }
+
+    .status-badge { display:inline-block; background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.3); color:var(--green); padding:8px 14px; font-size:12px; letter-spacing:.1em; text-transform:uppercase; margin-bottom:24px; font-weight:600; }
+  </style>
 </head>
 <body>
-  <div class="card">
-    <div class="check">✓</div>
-    <h1>Inscripción confirmada</h1>
-    <p class="sub">Te enviaremos los detalles a {{EMAIL}}</p>
 
-    <div class="row"><span class="lbl">ID</span><span class="val id">{{ID}}</span></div>
-    <div class="row"><span class="lbl">Piloto</span><span class="val">{{NOMBRE}}</span></div>
-    <div class="row"><span class="lbl">Plan</span><span class="val">{{PLAN}}</span></div>
-    <div class="row"><span class="lbl">Total del curso</span><span class="val">$ {{MONTO}} COP</span></div>
-    <div class="row"><span class="lbl">Fecha</span><span class="val">{{FECHA}}</span></div>
+<nav>
+  <a href="/inscripcion" class="nav-back">← Volver al formulario</a>
+  <a href="/" class="nav-logo" style="position:absolute;left:50%;transform:translateX(-50%);"><img src="/inscripcion/logo.jpg" alt="Scudería St4ge"></a>
+  <span class="nav-step">Confirmación</span>
+</nav>
 
-    <div class="status">{{STATUS}}</div>
-    <a class="btn" href="/inscripcion">Inscribir otro piloto</a>
+<div class="wrap">
+  <div class="success-icon">🏁</div>
+  <div class="success-title">¡Cupo<br>Reservado!</div>
+  <p class="success-sub">Tu formulario fue enviado exitosamente.<br>{{NEXT_STEP}}</p>
+
+  <div class="status-badge">{{STATUS}}</div>
+
+  <div class="summary">
+    <div class="summary-row"><span>ID</span><span class="id">{{ID}}</span></div>
+    <div class="summary-row"><span>Piloto</span><span>{{NOMBRE}}</span></div>
+    <div class="summary-row"><span>Plan</span><span>{{PLAN}}</span></div>
+    <div class="summary-row"><span>Total del curso</span><span>$ {{MONTO}} COP</span></div>
+    <div class="summary-row"><span>Fecha</span><span>{{FECHA}}</span></div>
+    <div class="summary-row"><span>Email</span><span>{{EMAIL}}</span></div>
   </div>
+
+  <div class="payment-final">
+    <div class="pay-final-card featured">
+      <div class="pay-final-title">💳 Pagar reserva con tarjeta — Bold</div>
+      <div class="pay-final-detail">La forma más rápida y segura. Tu reserva se confirma al instante.</div>
+      <a href="https://checkout.bold.co/payment/LNK_UQU9WHRQDT?ref={{ID}}" target="_blank" class="bold-btn">
+        💳 Pagar $150.000 con Bold →
+      </a>
+    </div>
+
+    <div class="pay-final-card">
+      <div class="pay-final-title">🟡 Bancolombia</div>
+      <div class="pay-final-detail">
+        <strong>Cuenta de Ahorros:</strong> 91200438910<br>
+        <strong>Titular:</strong> Andrés Camilo Melo<br>
+        <strong>CC:</strong> 1031148199<br><br>
+        Si ya transferiste y subiste el comprobante, tu reserva queda registrada.
+      </div>
+    </div>
+
+    <div class="pay-final-card">
+      <div class="pay-final-title">🟣 Nequi</div>
+      <div class="pay-final-detail">
+        <strong>Celular Nequi:</strong> 305 945 6266<br>
+        <strong>Titular:</strong> Andrés Camilo Melo (CC 1031148199)<br><br>
+        Si ya transferiste y subiste el comprobante, tu reserva queda registrada.
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:16px;">
+      <p style="font-size:13px;color:var(--text-dimmer);">¿Dudas? Escríbenos por WhatsApp: <a href="https://wa.me/573059456266" style="color:var(--gold);text-decoration:none;">305 945 6266</a></p>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

@@ -32,6 +32,9 @@ var formHTML string
 //go:embed success.html
 var successHTML string
 
+//go:embed assets/logo.jpg
+var logoJPG []byte
+
 // Plan describes a registration plan.
 type Plan struct {
 	ID         string // form value
@@ -56,14 +59,11 @@ const ReservaCOP = 150000
 // CardSurchargePct is the extra cost for paying with credit card.
 const CardSurchargePct = 5
 
-// Available course dates (label shown to user).
+// Available course dates (label shown to user). Match the values rendered in
+// form.html.
 var CourseDates = []string{
-	"Marzo 14 y 15",
-	"Marzo 28 y 29",
-	"Abril 11 y 12",
-	"Abril 25 y 26",
-	"Mayo 9 y 10",
-	"Mayo 23 y 24",
+	"MAYO 9 y 10",
+	"MAYO 23 y 24",
 }
 
 // PaymentMethods.
@@ -99,9 +99,15 @@ func NewHandler(cfg Config, repo *storage.InscripcionesRepo, logger *zap.Logger)
 
 // ServeForm renders the public registration form.
 func (h *Handler) ServeForm(c *fiber.Ctx) error {
-	html := renderForm()
 	c.Set("Content-Type", "text/html; charset=utf-8")
-	return c.SendString(html)
+	return c.SendString(formHTML)
+}
+
+// ServeLogo serves the brand logo bundled with the binary.
+func (h *Handler) ServeLogo(c *fiber.Ctx) error {
+	c.Set("Content-Type", "image/jpeg")
+	c.Set("Cache-Control", "public, max-age=86400")
+	return c.Send(logoJPG)
 }
 
 // Submit handles POSTed registration data.
@@ -144,17 +150,6 @@ func (h *Handler) Submit(c *fiber.Ctx) error {
 	}
 
 	go h.notifyDirector(*rec, *plan)
-
-	if rec.MetodoPago == "bold" {
-		// Redirect to Bold for the reserva payment — user will receive
-		// confirmation email after Bold processes it.
-		boldURL := plan.BoldLink
-		if boldURL == "" {
-			boldURL = ReservaBoldLink
-		}
-		boldURL = boldURL + "?ref=" + rec.ID
-		return c.Redirect(boldURL, fiber.StatusSeeOther)
-	}
 
 	c.Set("Content-Type", "text/html; charset=utf-8")
 	return c.SendString(renderSuccess(rec, plan))
@@ -444,37 +439,12 @@ const errorHTML = `<!doctype html><html lang="es"><head><meta charset="utf-8"><t
 <style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#0f0f1e;color:#fff;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}.card{background:#1a1a2e;padding:32px;border-radius:12px;max-width:480px;text-align:center}h1{color:#ff6b6b;margin:0 0 12px}p{color:#bcbccc;line-height:1.5}a{color:#ffb800;text-decoration:none}</style>
 </head><body><div class="card"><h1>{{TITLE}}</h1><p>{{DETAIL}}</p><p><a href="/inscripcion">← Volver al formulario</a></p></div></body></html>`
 
-func renderForm() string {
-	planOpts := ""
-	for _, p := range Plans {
-		planOpts += fmt.Sprintf(`<label class="plan"><input type="radio" name="plan" value="%s" required><span class="plan-body"><span class="plan-title">%s</span><span class="plan-price">$%s COP</span>%s</span></label>`,
-			p.ID, htmlEscape(p.Label), formatCOP(p.PriceCOP),
-			func() string {
-				if p.Note != "" {
-					return `<span class="plan-note">` + htmlEscape(p.Note) + `</span>`
-				}
-				return ""
-			}())
-	}
-
-	dateOpts := ""
-	for _, d := range CourseDates {
-		dateOpts += fmt.Sprintf(`<option value="%s">%s</option>`, d, d)
-	}
-
-	methodOpts := ""
-	for _, m := range PaymentMethods {
-		methodOpts += fmt.Sprintf(`<label class="method"><input type="radio" name="metodo_pago" value="%s" required><span>%s</span></label>`,
-			m.ID, htmlEscape(m.Label))
-	}
-
-	out := strings.ReplaceAll(formHTML, "{{PLANS}}", planOpts)
-	out = strings.ReplaceAll(out, "{{DATES}}", dateOpts)
-	out = strings.ReplaceAll(out, "{{METHODS}}", methodOpts)
-	return out
-}
-
 func renderSuccess(rec *storage.InscripcionRecord, plan *Plan) string {
+	nextStep := "Tu reserva quedó registrada. Pronto te contactaremos por WhatsApp para confirmar."
+	if rec.MetodoPago == "bold" {
+		nextStep = "Completa el pago de la reserva ($150.000) con Bold para confirmar tu cupo."
+	}
+
 	r := strings.NewReplacer(
 		"{{ID}}", htmlEscape(rec.ID),
 		"{{NOMBRE}}", htmlEscape(rec.NombrePiloto),
@@ -483,6 +453,15 @@ func renderSuccess(rec *storage.InscripcionRecord, plan *Plan) string {
 		"{{FECHA}}", htmlEscape(rec.FechaCurso),
 		"{{STATUS}}", htmlEscape(rec.Status),
 		"{{EMAIL}}", htmlEscape(rec.Email),
+		"{{NEXT_STEP}}", htmlEscape(nextStep),
 	)
-	return r.Replace(successHTML)
+	out := r.Replace(successHTML)
+
+	// If user picked Bold, auto-open the checkout in a new tab once the page loads.
+	if rec.MetodoPago == "bold" {
+		boldURL := ReservaBoldLink + "?ref=" + rec.ID
+		autoOpen := fmt.Sprintf(`<script>setTimeout(function(){window.open(%q,'_blank');},800);</script></body>`, boldURL)
+		out = strings.Replace(out, "</body>", autoOpen, 1)
+	}
+	return out
 }
