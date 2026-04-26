@@ -62,6 +62,11 @@ type Config struct {
 	// Claude pricing per million tokens (USD). Defaults to Sonnet rates.
 	ClaudePriceInputPerMTok  float64
 	ClaudePriceOutputPerMTok float64
+
+	// Inscripcion (public registration form)
+	UploadsDir       string
+	TelegramBotToken string
+	TelegramChatID   string
 }
 
 func Load() (*Config, error) {
@@ -94,6 +99,9 @@ func Load() (*Config, error) {
 		WorkerMaxAttempts:        getIntEnv("WORKER_MAX_ATTEMPTS", 3),
 		ClaudePriceInputPerMTok:  getFloatEnv("CLAUDE_PRICE_INPUT_PER_MTOK", 3.0),
 		ClaudePriceOutputPerMTok: getFloatEnv("CLAUDE_PRICE_OUTPUT_PER_MTOK", 15.0),
+		UploadsDir:               getEnv("UPLOADS_DIR", "./uploads"),
+		TelegramBotToken:         getEnv("TELEGRAM_BOT_TOKEN", ""),
+		TelegramChatID:           getEnv("TELEGRAM_CHAT_ID", ""),
 	}
 
 	cfg.PublicURL = normalizePublicURL(cfg.PublicURL)

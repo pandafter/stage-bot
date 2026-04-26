@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Inscripción · Scuderia St4ge</title>
+<style>
+  :root{
+    --bg:#0a0a14;
+    --panel:#15152a;
+    --panel-2:#1f1f3a;
+    --border:#2a2a4a;
+    --text:#f5f5fa;
+    --muted:#9999b8;
+    --accent:#ff3c3c;
+    --accent-2:#ffb800;
+    --ok:#3ec477;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Inter,sans-serif;
+    background:radial-gradient(1200px 600px at 80% -10%, rgba(255,60,60,.18), transparent 60%),
+               radial-gradient(800px 600px at 0% 110%, rgba(255,184,0,.10), transparent 60%),
+               var(--bg);
+    color:var(--text); min-height:100vh; padding:24px;
+  }
+  .wrap{max-width:880px;margin:0 auto}
+  header{display:flex;align-items:center;justify-content:space-between;padding:8px 4px 24px}
+  .brand{display:flex;align-items:center;gap:12px;font-weight:700;letter-spacing:.5px}
+  .brand-mark{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#ff3c3c,#ffb800);display:flex;align-items:center;justify-content:center;color:#0a0a14;font-weight:900}
+  .brand-name{font-size:16px}
+  .brand-sub{font-size:12px;color:var(--muted);font-weight:500}
+  .secure{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .lock{width:14px;height:14px;border:1.5px solid var(--ok);border-radius:3px;position:relative}
+  .lock:after{content:"";position:absolute;width:7px;height:6px;border:1.5px solid var(--ok);border-bottom:0;border-radius:3px 3px 0 0;top:-6px;left:1.5px}
+
+  .card{
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--border); border-radius:18px; overflow:hidden;
+    box-shadow:0 30px 80px rgba(0,0,0,.4);
+  }
+  .hero{padding:28px 32px;border-bottom:1px solid var(--border);
+    background:linear-gradient(135deg, rgba(255,60,60,.12), rgba(255,184,0,.08));
+  }
+  .hero h1{font-size:22px;margin-bottom:6px}
+  .hero p{color:var(--muted);font-size:14px}
+
+  .step{padding:28px 32px;border-bottom:1px solid var(--border)}
+  .step:last-child{border-bottom:0}
+  .step-head{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+  .step-num{
+    width:28px;height:28px;border-radius:50%;
+    background:rgba(255,184,0,.15);color:var(--accent-2);
+    display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:13px;
+  }
+  .step-title{font-size:15px;font-weight:600;letter-spacing:.3px}
+  .step-help{color:var(--muted);font-size:13px;margin-left:auto}
+
+  .grid{display:grid;gap:14px}
+  .grid-2{grid-template-columns:1fr 1fr}
+  @media (max-width:640px){.grid-2{grid-template-columns:1fr}}
+  .field{display:flex;flex-direction:column;gap:6px}
+  label.lbl{font-size:12px;color:var(--muted);font-weight:500;letter-spacing:.4px;text-transform:uppercase}
+  .input,select,textarea{
+    width:100%;background:#0c0c1c;border:1px solid var(--border);color:var(--text);
+    padding:12px 14px;border-radius:10px;font-size:14px;font-family:inherit;
+    transition:border .15s, box-shadow .15s;
+  }
+  .input:focus,select:focus,textarea:focus{outline:0;border-color:var(--accent-2);box-shadow:0 0 0 3px rgba(255,184,0,.18)}
+
+  /* Plans */
+  .plans{display:grid;gap:10px}
+  .plan{
+    display:flex;align-items:center;gap:14px;padding:14px 16px;
+    background:#0c0c1c;border:1.5px solid var(--border);border-radius:12px;cursor:pointer;
+    transition:border .15s, background .15s;
+  }
+  .plan:hover{border-color:#3a3a5a}
+  .plan input{accent-color:var(--accent-2);width:18px;height:18px;flex-shrink:0}
+  .plan input:checked + .plan-body .plan-title{color:var(--accent-2)}
+  .plan:has(input:checked){border-color:var(--accent-2);background:rgba(255,184,0,.05)}
+  .plan-body{display:flex;flex-direction:column;gap:2px;flex:1}
+  .plan-title{font-weight:600;font-size:14px}
+  .plan-price{font-size:13px;color:var(--muted)}
+  .plan-note{font-size:11px;color:var(--accent-2);margin-top:2px}
+
+  /* Methods */
+  .methods{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  @media (max-width:640px){.methods{grid-template-columns:1fr}}
+  .method{
+    display:flex;align-items:center;gap:10px;padding:14px;
+    background:#0c0c1c;border:1.5px solid var(--border);border-radius:12px;cursor:pointer;font-size:13px;
+  }
+  .method input{accent-color:var(--accent-2);width:16px;height:16px}
+  .method:has(input:checked){border-color:var(--accent-2);background:rgba(255,184,0,.05)}
+
+  /* File input */
+  .file{
+    display:flex;align-items:center;gap:12px;padding:14px;
+    background:#0c0c1c;border:1.5px dashed var(--border);border-radius:12px;cursor:pointer;font-size:13px;color:var(--muted);
+  }
+  .file input{display:none}
+  .file:hover{border-color:var(--accent-2)}
+  .file-status{margin-left:auto;color:var(--ok)}
+
+  .submit{
+    width:100%;padding:16px;font-size:15px;font-weight:700;letter-spacing:.5px;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#0a0a14;
+    border:0;border-radius:12px;cursor:pointer;text-transform:uppercase;
+    transition:transform .1s, box-shadow .15s;
+    box-shadow:0 8px 24px rgba(255,60,60,.25);
+  }
+  .submit:hover{transform:translateY(-1px);box-shadow:0 12px 32px rgba(255,60,60,.35)}
+  .submit:active{transform:translateY(0)}
+
+  .footnote{padding:18px 32px;color:var(--muted);font-size:12px;text-align:center;background:#0c0c1c;border-top:1px solid var(--border)}
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:rgba(62,196,119,.12);color:var(--ok);font-size:11px;font-weight:600}
+
+  .req::after{content:"*";color:var(--accent);margin-left:3px}
+
+  .card-only{display:none}
+  body[data-method="bold"] .card-only{display:block}
+  body[data-method="bancolombia"] .transfer-only,
+  body[data-method="nequi"] .transfer-only{display:block}
+  .transfer-only{display:none}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <div class="brand-mark">S4</div>
+        <div>
+          <div class="brand-name">SCUDERIA ST4GE</div>
+          <div class="brand-sub">Inscripción al curso de pilotaje</div>
+        </div>
+      </div>
+      <div class="secure"><span class="lock"></span> Pago protegido</div>
+    </header>
+
+    <form class="card" method="POST" action="/inscripcion" enctype="multipart/form-data" id="frm">
+      <div class="hero">
+        <h1>Reserva tu cupo en el Autódromo de Tocancipá</h1>
+        <p>Completa los datos del piloto y elige tu fecha. La reserva del cupo es de <strong>$150.000</strong> (el saldo se paga el día del entrenamiento).</p>
+      </div>
+
+      <!-- Plan -->
+      <section class="step">
+        <div class="step-head">
+          <div class="step-num">1</div>
+          <div class="step-title req">Selecciona tu plan</div>
+          <div class="step-help">El precio total del curso</div>
+        </div>
+        <div class="plans">{{PLANS}}</div>
+      </section>
+
+      <!-- Fecha -->
+      <section class="step">
+        <div class="step-head">
+          <div class="step-num">2</div>
+          <div class="step-title req">Fecha del curso</div>
+        </div>
+        <div class="field">
+          <label class="lbl">Elige una fecha</label>
+          <select name="fecha_curso" required>
+            <option value="">— Selecciona —</option>
+            {{DATES}}
+          </select>
+        </div>
+      </section>
+
+      <!-- Datos del piloto -->
+      <section class="step">
+        <div class="step-head">
+          <div class="step-num">3</div>
+          <div class="step-title req">Datos del piloto</div>
+        </div>
+        <div class="grid grid-2">
+          <div class="field">
+            <label class="lbl req">Nombre completo</label>
+            <input class="input" name="nombre_piloto" required maxlength="120">
+          </div>
+          <div class="field">
+            <label class="lbl req">Edad</label>
+            <input class="input" name="edad" type="number" min="8" max="90" required>
+          </div>
+          <div class="field">
+            <label class="lbl req">Tipo de documento</label>
+            <select name="tipo_documento" required>
+              <option value="">—</option>
+              <option value="CC">Cédula de Ciudadanía</option>
+              <option value="TI">Tarjeta de Identidad</option>
+              <option value="PA">Pasaporte</option>
+              <option value="CE">Cédula de Extranjería</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="lbl req">Número de documento</label>
+            <input class="input" name="numero_documento" required maxlength="30">
+          </div>
+          <div class="field">
+            <label class="lbl req">Teléfono</label>
+            <input class="input" name="telefono" type="tel" required maxlength="20">
+          </div>
+          <div class="field">
+            <label class="lbl req">Email</label>
+            <input class="input" name="email" type="email" required maxlength="120">
+          </div>
+          <div class="field">
+            <label class="lbl">Ciudad</label>
+            <input class="input" name="ciudad" maxlength="60">
+          </div>
+          <div class="field">
+            <label class="lbl">Usuario de Instagram</label>
+            <input class="input" name="instagram_user" placeholder="@tu_usuario" maxlength="60">
+          </div>
+        </div>
+      </section>
+
+      <!-- Salud y emergencia -->
+      <section class="step">
+        <div class="step-head">
+          <div class="step-num">4</div>
+          <div class="step-title req">Salud y contacto de emergencia</div>
+        </div>
+        <div class="grid grid-2">
+          <div class="field">
+            <label class="lbl req">EPS</label>
+            <input class="input" name="eps" required maxlength="80">
+          </div>
+          <div class="field">
+            <label class="lbl req">Grupo sanguíneo</label>
+            <select name="grupo_sanguineo" required>
+              <option value="">—</option>
+              <option>O+</option><option>O-</option>
+              <option>A+</option><option>A-</option>
+              <option>B+</option><option>B-</option>
+              <option>AB+</option><option>AB-</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="lbl req">Familiar de emergencia (nombre)</label>
+            <input class="input" name="familiar_nombre" required maxlength="120">
+          </div>
+          <div class="field">
+            <label class="lbl req">Teléfono del familiar</label>
+            <input class="input" name="familiar_telefono" type="tel" required maxlength="20">
+          </div>
+        </div>
+      </section>
+
+      <!-- Pago -->
+      <section class="step">
+        <div class="step-head">
+          <div class="step-num">5</div>
+          <div class="step-title req">Método de pago de la reserva</div>
+          <div class="step-help">Reserva del cupo: $150.000</div>
+        </div>
+        <div class="methods">{{METHODS}}</div>
+
+        <div class="card-only" style="margin-top:18px;padding:14px;background:rgba(255,184,0,.08);border:1px solid rgba(255,184,0,.25);border-radius:10px;font-size:13px;color:var(--accent-2)">
+          ⚡ Al enviar, te redirigiremos a Bold para procesar el pago de la reserva con tarjeta. Recargo del 5% aplicable.
+        </div>
+
+        <div class="transfer-only" style="margin-top:18px">
+          <div class="field" style="margin-bottom:10px">
+            <label class="lbl req">Comprobante del pago de la reserva ($150.000)</label>
+            <label class="file">
+              <input type="file" name="comprobante" accept="image/*,application/pdf" id="cmp">
+              <span id="cmp-label">Haz clic para subir el comprobante (máx. 10 MB)</span>
+              <span class="file-status" id="cmp-ok"></span>
+            </label>
+          </div>
+          <div style="padding:14px;background:rgba(62,196,119,.08);border:1px solid rgba(62,196,119,.25);border-radius:10px;font-size:13px;color:var(--ok);line-height:1.7">
+            <strong style="color:#fff">Datos para transferencia — Reserva $150.000</strong><br><br>
+            <strong>🏦 Bancolombia (Ahorros)</strong><br>
+            Cuenta: <code style="background:#0a0a14;padding:2px 6px;border-radius:4px;color:#ffb800">91200438910</code><br>
+            Titular: ANDRES CAMILO MELO<br>
+            CC: 1031148199<br><br>
+            <strong>📲 Nequi</strong><br>
+            Celular: <code style="background:#0a0a14;padding:2px 6px;border-radius:4px;color:#ffb800">3059456266</code><br><br>
+            Realiza la transferencia y sube el comprobante arriba.
+          </div>
+        </div>
+      </section>
+
+      <section class="step">
+        <button type="submit" class="submit">Confirmar inscripción</button>
+        <p style="text-align:center;color:var(--muted);font-size:12px;margin-top:14px">
+          <span class="badge">✓ Reserva: $150.000</span>
+          &nbsp;Saldo restante se paga el día del entrenamiento.
+        </p>
+      </section>
+
+      <div class="footnote">
+        Al enviar aceptas los <a href="/legal/terms-of-service.html" style="color:var(--accent-2)">términos</a> y la
+        <a href="/legal/privacy-policy.html" style="color:var(--accent-2)">política de privacidad</a>.
+      </div>
+    </form>
+  </div>
+
+<script>
+  const body = document.body;
+  document.querySelectorAll('input[name="metodo_pago"]').forEach(r => {
+    r.addEventListener('change', e => body.setAttribute('data-method', e.target.value));
+  });
+  const cmp = document.getElementById('cmp');
+  if (cmp) cmp.addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (f) {
+      document.getElementById('cmp-label').textContent = f.name + ' (' + (f.size/1024/1024).toFixed(2) + ' MB)';
+      document.getElementById('cmp-ok').textContent = '✓';
+    }
+  });
+</script>
+</body>
+</html>

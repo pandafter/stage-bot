@@ -45,6 +45,7 @@ func main() {
 
 	leadsRepo := storage.NewLeadsRepo(db)
 	convRepo := storage.NewConversationRepo(db)
+	inscripcionesRepo := storage.NewInscripcionesRepo(db)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -84,6 +85,7 @@ func main() {
 		AudioStore:     audioStore,
 		Leads:          leadsRepo,
 		Conversation:   convRepo,
+		Inscripciones:  inscripcionesRepo,
 		Queue:          jobQueue,
 		WebhookHandler: webhookHandler,
 	}

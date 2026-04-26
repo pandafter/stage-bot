@@ -15,6 +15,7 @@ import (
 	"github.com/kart-academy/instagram-bot/internal/admin"
 	"github.com/kart-academy/instagram-bot/internal/config"
 	"github.com/kart-academy/instagram-bot/internal/domain"
+	"github.com/kart-academy/instagram-bot/internal/inscripcion"
 	"github.com/kart-academy/instagram-bot/internal/mcp"
 	"github.com/kart-academy/instagram-bot/internal/queue"
 	"github.com/kart-academy/instagram-bot/internal/storage"
@@ -34,6 +35,7 @@ type Dependencies struct {
 	AudioStore     domain.AudioStore
 	Leads          *storage.LeadsRepo
 	Conversation   *storage.ConversationRepo
+	Inscripciones  *storage.InscripcionesRepo
 	Queue          queue.Queue
 	WebhookHandler *webhook.Handler
 }
@@ -96,6 +98,17 @@ func (s *Server) setupRoutes(deps Dependencies) {
 	s.app.Get("/.well-known/oauth-protected-resource/mcp", mcpHandler.ProtectedResourceMetadata)
 	// MCP spec also asks for dynamic client registration metadata; we accept any client.
 	s.app.Post("/mcp/register", mcpHandler.DynamicClientRegister)
+
+	if deps.Inscripciones != nil {
+		ih := inscripcion.NewHandler(inscripcion.Config{
+			UploadsDir:       s.cfg.UploadsDir,
+			PublicURL:        s.cfg.PublicURL,
+			TelegramBotToken: s.cfg.TelegramBotToken,
+			TelegramChatID:   s.cfg.TelegramChatID,
+		}, deps.Inscripciones, s.logger)
+		s.app.Get("/inscripcion", ih.ServeForm)
+		s.app.Post("/inscripcion", ih.Submit)
+	}
 
 	if deps.Leads != nil && deps.Conversation != nil {
 		ah := admin.NewHandler(s.cfg, deps.Leads, deps.Conversation, deps.Messenger, deps.AI, deps.Queue, s.logger)

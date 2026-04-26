@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +33,7 @@ type ScriptedMessages struct {
 	Director     string
 	FollowUp6H   string
 	FollowUp24H  string
+	FollowUp48H  string
 	FollowUp120H string
 }
 
@@ -104,10 +106,17 @@ func (s *Store) Get() *SheetData {
 		*dest = content
 	}
 
-	if rows, err := s.fetchTabRows("empresa"); err == nil {
-		data.EmpresaWhatsApp = extractEmpresaWhatsApp(rows)
-		data.EmpresaCharlaCubre = extractFirstByKeys(rows,
-			"charlaincluida", "charla", "charlacubre", "incluyecharla")
+	empresaRaw, empresaErr := s.fetchTabRaw("empresa")
+	if empresaErr == nil {
+		empresaParsed := parseEmpresaSheet(empresaRaw)
+		data.EmpresaWhatsApp = empresaParsed.WhatsApp
+		data.EmpresaCharlaCubre = empresaParsed.CharlaIncluye
+		// Override the textual Empresa with a cleaner formatted version including
+		// key/value pairs (col A/B) + IA notes (col C) so the system prompt can use it.
+		if formatted := empresaParsed.FormatForPrompt(); formatted != "" {
+			data.Empresa = formatted
+		}
+		data.Scripted = empresaParsed.Scripted
 	}
 
 	if rows, err := s.fetchTabRows("ejemplos_ventas"); err == nil {
@@ -115,7 +124,31 @@ func (s *Store) Get() *SheetData {
 			"mensajespredeterminados", "mensajepredeterminado", "guia", "opciones")
 	}
 
-	data.Scripted = s.fetchScriptedMessages()
+	// If empresa didn't supply scripted messages, fall back to the dedicated tab.
+	if data.Scripted.Message1 == "" || data.Scripted.FollowUp6H == "" {
+		fallback := s.fetchScriptedMessages()
+		if data.Scripted.Message1 == "" {
+			data.Scripted.Message1 = fallback.Message1
+		}
+		if data.Scripted.Message2 == "" {
+			data.Scripted.Message2 = fallback.Message2
+		}
+		if data.Scripted.Director == "" {
+			data.Scripted.Director = fallback.Director
+		}
+		if data.Scripted.FollowUp6H == "" {
+			data.Scripted.FollowUp6H = fallback.FollowUp6H
+		}
+		if data.Scripted.FollowUp24H == "" {
+			data.Scripted.FollowUp24H = fallback.FollowUp24H
+		}
+		if data.Scripted.FollowUp48H == "" {
+			data.Scripted.FollowUp48H = fallback.FollowUp48H
+		}
+		if data.Scripted.FollowUp120H == "" {
+			data.Scripted.FollowUp120H = fallback.FollowUp120H
+		}
+	}
 
 	s.data = data
 	s.last = time.Now()
@@ -239,6 +272,8 @@ func (s *Store) FollowUpMessage(attempt int) string {
 		return strings.TrimSpace(data.Scripted.FollowUp6H)
 	case 2:
 		return strings.TrimSpace(data.Scripted.FollowUp24H)
+	case 3:
+		return strings.TrimSpace(data.Scripted.FollowUp48H)
 	default:
 		return strings.TrimSpace(data.Scripted.FollowUp120H)
 	}
@@ -485,6 +520,280 @@ func digitsOnly(s string) string {
 		}
 	}
 	return b.String()
+}
+
+// fetchTabRaw downloads a sheet tab as a 2D matrix of strings, including the
+// header row, with no header inference. Use this for sheets where the first
+// row contains real data (e.g., the empresa tab).
+func (s *Store) fetchTabRaw(tabName string) ([][]string, error) {
+	url := fmt.Sprintf(
+		"https://docs.google.com/spreadsheets/d/%s/gviz/tq?tqx=out:csv&sheet=%s&headers=0",
+		s.sheetID, tabName,
+	)
+	resp, err := s.httpClient.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("fetch raw tab %s: %w", tabName, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetch raw tab %s: status %d", tabName, resp.StatusCode)
+	}
+	reader := csv.NewReader(resp.Body)
+	reader.LazyQuotes = true
+	reader.FieldsPerRecord = -1
+	var out [][]string
+	for {
+		row, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			continue
+		}
+		out = append(out, row)
+	}
+	return out, nil
+}
+
+// EmpresaParsed is the structured view of the empresa tab.
+type EmpresaParsed struct {
+	KeyValues     map[string]string // col A → col B (lowercased keys)
+	Notas         []string          // col C from row 1 down
+	WhatsApp      string
+	CharlaIncluye string
+	Scripted      ScriptedMessages
+}
+
+// FormatForPrompt renders the empresa info for inclusion in the system prompt.
+func (e *EmpresaParsed) FormatForPrompt() string {
+	var b strings.Builder
+	if len(e.KeyValues) > 0 {
+		for _, k := range []string{"nombre", "descripcion", "ubicacion", "telefono", "instagram", "horario_atencion"} {
+			if v, ok := e.KeyValues[k]; ok && v != "" {
+				fmt.Fprintf(&b, "%s: %s\n", k, v)
+			}
+		}
+	}
+	if len(e.Notas) > 0 {
+		b.WriteString("\nNOTAS IMPORTANTES PARA LA IA:\n")
+		for _, n := range e.Notas {
+			fmt.Fprintf(&b, "- %s\n", n)
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// parseEmpresaSheet interprets the empresa tab using positional columns.
+// Layout (0-indexed):
+//   col 0 = key, col 1 = value (A/B key-value table)
+//   col 2 = notas IA (one note per row, starting row 1)
+//   col 3 = follow-ups (row 1 contains all 4 followups in one cell, labelled
+//           "6 horas:", "24 horas:", "48 horas:", "120 horas:")
+//   col 4 = charla_incluye (row 1 = primary message 1, row 2 = primary message
+//           2 / closing question)
+func parseEmpresaSheet(rows [][]string) EmpresaParsed {
+	out := EmpresaParsed{KeyValues: map[string]string{}}
+	if len(rows) == 0 {
+		return out
+	}
+
+	// col 0 / col 1: key/value pairs (skip header row 0 where col0 may be empty
+	// or contain the literal string "nombre"). Header row 0 has the labels for
+	// cols 2-4; data starts at row 0 col0/col1 — but inspecting the live sheet,
+	// row 0 already has "nombre"/"SCUDERIA ST4GE" as a key/value pair, so we
+	// include it.
+	for _, row := range rows {
+		if len(row) < 2 {
+			continue
+		}
+		key := normalizeHeaderKey(row[0])
+		val := strings.TrimSpace(row[1])
+		if key == "" || val == "" {
+			continue
+		}
+		// Skip the literal column header words if a user wrote them in col 0.
+		if key == "key" || key == "campo" {
+			continue
+		}
+		out.KeyValues[key] = val
+	}
+
+	// col 2: IA notes. Row 0 is the section header (e.g., "NOTAS IMPORTANTES IA"),
+	// but it sometimes carries a long instruction sentence. Treat row 0 as a
+	// note only when it's not just a label.
+	for i, row := range rows {
+		if len(row) < 3 {
+			continue
+		}
+		note := strings.TrimSpace(row[2])
+		if note == "" {
+			continue
+		}
+		if i == 0 && isHeaderLabel(note, "notas") {
+			continue
+		}
+		out.Notas = append(out.Notas, note)
+	}
+
+	// col 3: follow-ups. Find the first non-empty cell that isn't just the
+	// header label, then parse "<n> horas:" segments.
+	var followBlock string
+	for i, row := range rows {
+		if len(row) < 4 {
+			continue
+		}
+		val := strings.TrimSpace(row[3])
+		if val == "" {
+			continue
+		}
+		if i == 0 && isHeaderLabel(val, "follow") {
+			continue
+		}
+		followBlock = val
+		break
+	}
+	if followBlock != "" {
+		segs := parseFollowUpsBlock(followBlock)
+		out.Scripted.FollowUp6H = segs[6]
+		out.Scripted.FollowUp24H = segs[24]
+		out.Scripted.FollowUp48H = segs[48]
+		out.Scripted.FollowUp120H = segs[120]
+	}
+
+	// col 4: charla_incluye — collect non-empty rows in order, skipping the
+	// section header in row 0. First piece becomes Message1, second piece
+	// becomes Message2 (the question). Anything else is appended to the
+	// CharlaIncluye full text.
+	var charlaPieces []string
+	for i, row := range rows {
+		if len(row) < 5 {
+			continue
+		}
+		val := strings.TrimSpace(row[4])
+		if val == "" {
+			continue
+		}
+		if i == 0 && isHeaderLabel(val, "charla") {
+			continue
+		}
+		charlaPieces = append(charlaPieces, val)
+	}
+	if len(charlaPieces) >= 1 {
+		out.Scripted.Message1 = charlaPieces[0]
+	}
+	if len(charlaPieces) >= 2 {
+		out.Scripted.Message2 = charlaPieces[1]
+	} else if len(charlaPieces) == 1 {
+		// Single-cell case: try to split off the trailing question paragraph.
+		m1, m2 := splitMessageAndQuestion(charlaPieces[0])
+		out.Scripted.Message1 = m1
+		out.Scripted.Message2 = m2
+	}
+	out.CharlaIncluye = strings.TrimSpace(strings.Join(charlaPieces, "\n\n"))
+
+	// WhatsApp: prefer explicit telefono key, fall back to any numeric.
+	if v, ok := out.KeyValues["telefono"]; ok {
+		out.WhatsApp = digitsOnly(v)
+	}
+	if out.WhatsApp == "" {
+		if v, ok := out.KeyValues["whatsapp"]; ok {
+			out.WhatsApp = digitsOnly(v)
+		}
+	}
+
+	return out
+}
+
+// isHeaderLabel returns true if s looks like a section header label (short,
+// matches a known prefix, no surrounding sentence content).
+func isHeaderLabel(s, prefix string) bool {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if len(s) > 60 {
+		return false
+	}
+	return strings.HasPrefix(s, strings.ToLower(prefix))
+}
+
+// parseFollowUpsBlock extracts follow-up messages keyed by hour from a single
+// cell that contains entries like "6 horas: ...\n24 horas : ...\n48 horas: ...".
+func parseFollowUpsBlock(block string) map[int]string {
+	out := map[int]string{}
+	// Find every "<n> horas[:]" anchor and slice between anchors.
+	type anchor struct {
+		hour  int
+		start int // index of the anchor itself
+		end   int // index where the message body starts
+	}
+	var anchors []anchor
+
+	lower := strings.ToLower(block)
+	i := 0
+	for i < len(lower) {
+		// Look for digits followed by "hora"/"horas".
+		j := i
+		for j < len(lower) && (lower[j] < '0' || lower[j] > '9') {
+			j++
+		}
+		if j >= len(lower) {
+			break
+		}
+		k := j
+		for k < len(lower) && lower[k] >= '0' && lower[k] <= '9' {
+			k++
+		}
+		// Skip optional spaces, then check for "hora".
+		m := k
+		for m < len(lower) && lower[m] == ' ' {
+			m++
+		}
+		if m+4 <= len(lower) && lower[m:m+4] == "hora" {
+			// Advance past "hora"/"horas" and any spaces + colon.
+			n := m + 4
+			if n < len(lower) && lower[n] == 's' {
+				n++
+			}
+			for n < len(lower) && (lower[n] == ' ' || lower[n] == ':') {
+				n++
+			}
+			h, err := strconv.Atoi(block[j:k])
+			if err == nil {
+				anchors = append(anchors, anchor{hour: h, start: j, end: n})
+			}
+			i = n
+			continue
+		}
+		i = k + 1
+	}
+
+	for idx, a := range anchors {
+		end := len(block)
+		if idx+1 < len(anchors) {
+			end = anchors[idx+1].start
+		}
+		body := strings.TrimSpace(block[a.end:end])
+		if body != "" {
+			out[a.hour] = body
+		}
+	}
+	return out
+}
+
+// splitMessageAndQuestion splits a block into (intro, closing question). The
+// closing question is the last paragraph that ends with '?'.
+func splitMessageAndQuestion(s string) (string, string) {
+	s = strings.TrimSpace(s)
+	paras := strings.Split(s, "\n\n")
+	for i := len(paras) - 1; i >= 0; i-- {
+		p := strings.TrimSpace(paras[i])
+		if p == "" {
+			continue
+		}
+		if strings.HasSuffix(p, "?") {
+			intro := strings.TrimSpace(strings.Join(paras[:i], "\n\n"))
+			return intro, p
+		}
+	}
+	return s, ""
 }
 
 func compactTextList(values ...string) []string {

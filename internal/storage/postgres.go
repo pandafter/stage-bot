@@ -121,6 +121,32 @@ func (db *DB) migrate() error {
 		`ALTER TABLE leads ADD COLUMN IF NOT EXISTS followup_count INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE leads ADD COLUMN IF NOT EXISTS last_followup TIMESTAMPTZ`,
 		`CREATE INDEX IF NOT EXISTS idx_leads_followup ON leads(last_seen, state) WHERE outcome = 'open'`,
+
+		// Inscripciones (registrations from the public form)
+		`CREATE TABLE IF NOT EXISTS inscripciones (
+			id               TEXT PRIMARY KEY,
+			email            TEXT NOT NULL,
+			metodo_pago      TEXT NOT NULL,
+			fecha_curso      TEXT NOT NULL,
+			plan             TEXT NOT NULL,
+			monto_cop        INTEGER NOT NULL DEFAULT 0,
+			nombre_piloto    TEXT NOT NULL,
+			edad             INTEGER NOT NULL DEFAULT 0,
+			tipo_documento   TEXT NOT NULL,
+			numero_documento TEXT NOT NULL,
+			telefono         TEXT NOT NULL,
+			ciudad           TEXT NOT NULL DEFAULT '',
+			eps              TEXT NOT NULL,
+			grupo_sanguineo  TEXT NOT NULL,
+			familiar_nombre  TEXT NOT NULL,
+			familiar_telefono TEXT NOT NULL,
+			instagram_user   TEXT NOT NULL DEFAULT '',
+			comprobante_path TEXT NOT NULL DEFAULT '',
+			status           TEXT NOT NULL DEFAULT 'pendiente',
+			created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_inscripciones_status ON inscripciones(status, created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_inscripciones_email ON inscripciones(email)`,
 	}
 
 	for _, m := range migrations {
