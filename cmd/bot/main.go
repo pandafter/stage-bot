@@ -51,7 +51,11 @@ func main() {
 	defer stop()
 
 	playbook := ai.NewPlaybook(leadsRepo, convRepo, logger)
-	playbook.Start(ctx)
+	if cfg.BotEnabled {
+		playbook.Start(ctx)
+	} else {
+		logger.Info("bot disabled — playbook loop NOT started")
+	}
 
 	ig := messenger.NewInstagram(cfg.PageAccessToken, cfg.InstagramAccountID, logger)
 	ks := knowledge.NewStore(cfg.GoogleSheetID, logger)
@@ -66,7 +70,11 @@ func main() {
 	audioStore := voice.NewAudioStore()
 
 	followup := ai.NewFollowUp(brain, ig, leadsRepo, convRepo, logger)
-	followup.Start(ctx)
+	if cfg.BotEnabled {
+		followup.Start(ctx)
+	} else {
+		logger.Info("bot disabled — follow-up loop NOT started (no proactive DMs)")
+	}
 
 	jobQueue := queue.NewPostgres(db.Conn())
 
@@ -76,7 +84,12 @@ func main() {
 		Concurrency: cfg.WorkerConcurrency,
 		MaxAttempts: cfg.WorkerMaxAttempts,
 	}, logger)
-	pool.Start(ctx)
+	if cfg.BotEnabled {
+		pool.Start(ctx)
+	} else {
+		logger.Info("bot disabled — queue worker pool NOT started")
+	}
+	_ = pool
 
 	deps := server.Dependencies{
 		Messenger:      ig,

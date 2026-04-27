@@ -75,12 +75,16 @@ func (s *Server) setupRoutes(deps Dependencies) {
 		return c.Send(data)
 	})
 
-	wh := deps.WebhookHandler
-	if wh == nil {
-		wh = webhook.NewHandler(s.cfg, deps.Messenger, deps.AI, deps.Voice, deps.AudioStore, deps.Queue, s.logger)
+	if s.cfg.BotEnabled {
+		wh := deps.WebhookHandler
+		if wh == nil {
+			wh = webhook.NewHandler(s.cfg, deps.Messenger, deps.AI, deps.Voice, deps.AudioStore, deps.Queue, s.logger)
+		}
+		s.app.Get("/webhook", wh.Verify)
+		s.app.Post("/webhook", wh.Receive)
+	} else {
+		s.logger.Info("bot disabled — Meta /webhook routes NOT registered (full disconnect)")
 	}
-	s.app.Get("/webhook", wh.Verify)
-	s.app.Post("/webhook", wh.Receive)
 
 	mcpHandler := mcp.NewHandler(s.cfg, s.logger)
 	s.app.Post("/mcp/token", mcpHandler.Token)
