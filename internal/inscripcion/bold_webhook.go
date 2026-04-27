@@ -101,6 +101,14 @@ func (h *Handler) BoldWebhook(c *fiber.Ctx) error {
 	}
 
 	go h.notifyBold(ev, data, newStatus)
+	go h.pushStatusUpdate(context.Background(), SheetStatusUpdate{
+		ID:            ref,
+		Status:        newStatus,
+		BoldPaymentID: ev.Subject,
+		BoldAmount:    int(data.Amount.Total),
+		BoldMethod:    data.PaymentMethod,
+		BoldFranchise: data.Card.Franchise,
+	})
 
 	return c.SendStatus(fiber.StatusOK)
 }
@@ -137,24 +145,45 @@ func (h *Handler) notifyBold(ev BoldEvent, data boldData, newStatus string) {
 	if h.cfg.TelegramBotToken == "" || h.cfg.TelegramChatID == "" {
 		return
 	}
-	icon := "💳"
+
+	header := ""
 	switch ev.Type {
 	case "SALE_APPROVED":
-		icon = "✅"
+		header = "🟢 *PAGO CONFIRMADO* — Bold"
 	case "SALE_REJECTED":
-		icon = "❌"
+		header = "🔴 *PAGO RECHAZADO* — Bold"
 	case "VOID_APPROVED":
-		icon = "↩️"
+		header = "↩️ *Pago anulado* — Bold"
+	default:
+		header = "💳 *Evento Bold:* " + tgEscape(ev.Type)
 	}
-	msg := fmt.Sprintf("%s *Bold · %s*\n\n*Inscripción:* `%s`\n*Transacción:* `%s`\n*Monto:* $%s COP\n*Método:* %s\n*Estado:* %s",
-		icon, tgEscape(ev.Type),
-		tgEscape(data.Metadata.Reference),
-		tgEscape(ev.Subject),
-		tgEscape(formatCOP(int(data.Amount.Total))),
-		tgEscape(data.PaymentMethod),
-		tgEscape(newStatus),
-	)
-	if err := h.tgSendMessage(msg); err != nil {
+
+	method := data.PaymentMethod
+	if data.Card.Franchise != "" {
+		method = method + " (" + data.Card.Franchise + ")"
+	}
+
+	tsLabel := time.Unix(ev.Time, 0).Format("2006-01-02 15:04:05")
+	if ev.Time == 0 {
+		tsLabel = time.Now().Format("2006-01-02 15:04:05")
+	}
+
+	var b strings.Builder
+	fmt.Fprintln(&b, header)
+	b.WriteString("\n")
+	fmt.Fprintf(&b, "🧾 *Comprobante Bold*\n")
+	fmt.Fprintf(&b, "*Inscripción:* `%s`\n", tgEscape(data.Metadata.Reference))
+	fmt.Fprintf(&b, "*ID transacción Bold:* `%s`\n", tgEscape(ev.Subject))
+	if data.PaymentID != "" {
+		fmt.Fprintf(&b, "*Payment ID:* `%s`\n", tgEscape(data.PaymentID))
+	}
+	fmt.Fprintf(&b, "*Monto:* $%s COP\n", tgEscape(formatCOP(int(data.Amount.Total))))
+	fmt.Fprintf(&b, "*Método:* %s\n", tgEscape(method))
+	fmt.Fprintf(&b, "*Fecha y hora:* %s\n", tgEscape(tsLabel))
+	fmt.Fprintf(&b, "*Estado actualizado:* %s\n", tgEscape(newStatus))
+	fmt.Fprintf(&b, "\n_Notificación oficial recibida vía webhook firmado por Bold. Este mensaje sirve como comprobante digital del evento de pago._")
+
+	if err := h.tgSendMessage(b.String()); err != nil {
 		h.logger.Error("telegram bold notification failed", zap.Error(err))
 	}
 }

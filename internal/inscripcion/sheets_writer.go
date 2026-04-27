@@ -109,3 +109,56 @@ func boldDescription(modalidad string, edad int) string {
 		return fmt.Sprintf("Curso piloto Scuderia St4ge — Reserva de cupo (%d años)", edad)
 	}
 }
+
+// SheetStatusUpdate is the payload posted to the Apps Script when we want to
+// update an existing row instead of appending a new one. The script
+// distinguishes by the `op` field.
+type SheetStatusUpdate struct {
+	Op             string `json:"op"`
+	Token          string `json:"token"`
+	ID             string `json:"id"`
+	Status         string `json:"status"`
+	BoldPaymentID  string `json:"bold_payment_id"`
+	BoldAmount     int    `json:"bold_amount"`
+	BoldMethod     string `json:"bold_method"`
+	BoldFranchise  string `json:"bold_franchise"`
+	BoldUpdatedAt  string `json:"bold_updated_at"`
+}
+
+// pushStatusUpdate notifies the Apps Script that a row's status changed (e.g.
+// after Bold confirms the payment). No-op when the webhook URL is empty.
+func (h *Handler) pushStatusUpdate(ctx context.Context, upd SheetStatusUpdate) {
+	if h.cfg.SheetsWebhookURL == "" {
+		return
+	}
+	upd.Op = "update"
+	upd.Token = h.cfg.SheetsSharedToken
+	if upd.BoldUpdatedAt == "" {
+		upd.BoldUpdatedAt = time.Now().Format(time.RFC3339)
+	}
+	body, err := json.Marshal(upd)
+	if err != nil {
+		h.logger.Error("sheets update marshal", zap.Error(err))
+		return
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, "POST", h.cfg.SheetsWebhookURL, bytes.NewReader(body))
+	if err != nil {
+		h.logger.Error("sheets update request", zap.Error(err))
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		h.logger.Error("sheets update post", zap.Error(err))
+		return
+	}
+	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 300 {
+		h.logger.Error("sheets update non-2xx", zap.Int("status", resp.StatusCode), zap.String("body", string(respBody)))
+		return
+	}
+	h.logger.Info("inscripcion status actualizado en Sheets", zap.String("id", upd.ID), zap.String("status", upd.Status))
+}
