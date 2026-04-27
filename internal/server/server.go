@@ -107,6 +107,9 @@ func (s *Server) setupRoutes(deps Dependencies) {
  			TelegramChatID:    s.cfg.TelegramChatID,
  			AdminToken:        s.cfg.AdminToken,
  			BoldWebhookSecret: s.cfg.BoldWebhookSecret,
+ 			BoldAPIKey:        s.cfg.BoldAPIKey,
+ 			SheetsWebhookURL:  s.cfg.SheetsWebhookURL,
+ 			SheetsSharedToken: s.cfg.SheetsSharedToken,
  		}, deps.Inscripciones, s.logger)
  		s.app.Get("/inscripcion", ih.ServeForm)
  		s.app.Post("/inscripcion", ih.Submit)

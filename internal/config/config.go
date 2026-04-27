@@ -68,6 +68,9 @@ type Config struct {
 	TelegramBotToken  string
 	TelegramChatID    string
 	BoldWebhookSecret string
+	BoldAPIKey        string // identity key for Bold's POST link creation API
+	SheetsWebhookURL  string // Apps Script web app URL receiving inscripciones
+	SheetsSharedToken string // shared secret echoed back to verify the call
 }
 
 func Load() (*Config, error) {
@@ -104,6 +107,9 @@ func Load() (*Config, error) {
 		TelegramBotToken:         getEnv("TELEGRAM_BOT_TOKEN", ""),
 		TelegramChatID:           getEnv("TELEGRAM_CHAT_ID", ""),
 		BoldWebhookSecret:        getEnv("BOLD_WEBHOOK_SECRET", ""),
+		BoldAPIKey:               getEnv("BOLD_API_KEY", ""),
+		SheetsWebhookURL:         getEnv("SHEETS_WEBHOOK_URL", ""),
+		SheetsSharedToken:        getEnv("SHEETS_SHARED_TOKEN", ""),
 	}
 
 	cfg.PublicURL = normalizePublicURL(cfg.PublicURL)

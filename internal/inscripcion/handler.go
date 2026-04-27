@@ -55,18 +55,38 @@ type Plan struct {
 	IsPreventa bool
 }
 
-var Plans = []Plan{
-	{ID: "preventa", Label: "Preventa individual / parejas", PriceCOP: 730000, BoldLink: "https://checkout.bold.co/payment/LNK_VFE303JBR9", IsPreventa: true},
-	{ID: "normal", Label: "Tarifa estándar (sin descuento)", PriceCOP: 890000},
-	{ID: "reserva", Label: "Solo reserva (asistir luego)", PriceCOP: 150000, BoldLink: "https://checkout.bold.co/payment/LNK_UQU9WHRQDT"},
+// Modalidad determines whether the user pays only the cup reservation or the
+// full preventa price.
+type Modalidad struct {
+	ID       string
+	Label    string
+	PriceCOP int
 }
 
-// ReservaBoldLink is always the same — $150k via Bold for cup reservation.
+var Modalidades = []Modalidad{
+	{ID: "reserva", Label: "Solo reserva del cupo", PriceCOP: 150000},
+	{ID: "completo", Label: "Pago completo (preventa)", PriceCOP: 730000},
+}
+
+func findModalidad(id string) *Modalidad {
+	for i := range Modalidades {
+		if Modalidades[i].ID == id {
+			return &Modalidades[i]
+		}
+	}
+	return nil
+}
+
+// Legacy fallback link used only if Bold API is unavailable.
 const ReservaBoldLink = "https://checkout.bold.co/payment/LNK_UQU9WHRQDT"
 const ReservaCOP = 150000
 
 // CardSurchargePct is the extra cost for paying with credit card.
 const CardSurchargePct = 5
+
+// Default plan label kept for the records table (we no longer surface multiple
+// plans in the form; modalidad replaces that concept).
+const DefaultPlanID = "preventa"
 
 // Available course dates (label shown to user). Match the values rendered in
 // form.html.
@@ -75,14 +95,30 @@ var CourseDates = []string{
 	"MAYO 23 y 24",
 }
 
-// PaymentMethods.
-var PaymentMethods = []struct {
-	ID    string
-	Label string
-}{
-	{"bancolombia", "Bancolombia (transferencia)"},
-	{"nequi", "Nequi (transferencia)"},
-	{"bold", "Tarjeta de crédito (Bold) — recargo +5%"},
+// PaymentMethods exposes every method accepted by the form. A method is
+// "digital" when it is processed through Bold (we generate a checkout URL on
+// the fly). The "transferencia" fallback is manual and requires comprobante.
+type PaymentMethod struct {
+	ID         string
+	Label      string
+	BoldMethod BoldPaymentMethod // empty for the manual transfer fallback
+}
+
+var PaymentMethods = []PaymentMethod{
+	{ID: "tarjeta", Label: "Tarjeta de crédito / débito", BoldMethod: BoldMethodCard},
+	{ID: "nequi", Label: "Nequi", BoldMethod: BoldMethodNequi},
+	{ID: "bancolombia", Label: "Botón Bancolombia", BoldMethod: BoldMethodBancolombia},
+	{ID: "pse", Label: "PSE — otros bancos", BoldMethod: BoldMethodPSE},
+	{ID: "transferencia", Label: "Transferencia manual + comprobante"},
+}
+
+func findMethod(id string) *PaymentMethod {
+	for i := range PaymentMethods {
+		if PaymentMethods[i].ID == id {
+			return &PaymentMethods[i]
+		}
+	}
+	return nil
 }
 
 type Config struct {
@@ -92,6 +128,9 @@ type Config struct {
 	TelegramChatID    string
 	AdminToken        string // required to call diagnostic endpoints
 	BoldWebhookSecret string // shared secret to verify Bold webhook HMAC
+	BoldAPIKey        string // identity key to call Bold's link-creation API
+	SheetsWebhookURL  string // Apps Script web-app URL receiving inscripciones
+	SheetsSharedToken string // shared secret echoed in payload for verification
 }
 
 type Handler struct {
@@ -244,46 +283,60 @@ func (h *Handler) Submit(c *fiber.Ctx) error {
 		return errPage(c, fiber.StatusBadRequest, "Formulario inválido", err.Error())
 	}
 
-	rec, plan, validationErr := parseForm(form)
+	rec, modalidad, method, validationErr := parseForm(form)
 	if validationErr != nil {
 		return errPage(c, fiber.StatusBadRequest, "Faltan datos obligatorios", validationErr.Error())
 	}
 
-	// Receipt upload required for transfer methods.
-	requiresReceipt := rec.MetodoPago == "bancolombia" || rec.MetodoPago == "nequi"
+	// Manual transfer is the only path that requires a receipt upload.
 	files := form.File["comprobante"]
-	if requiresReceipt && len(files) == 0 {
+	if method.ID == "transferencia" && len(files) == 0 {
 		return errPage(c, fiber.StatusBadRequest, "Comprobante requerido",
-			"Para Bancolombia/Nequi debes adjuntar el comprobante de la reserva ($150.000).")
+			"Para transferencia manual debes adjuntar el comprobante de la reserva ($150.000).")
 	}
 
 	rec.ID = newID()
 	rec.Status = "pendiente"
-	if requiresReceipt && len(files) > 0 {
+	if method.ID == "transferencia" && len(files) > 0 {
 		path, err := h.saveReceipt(rec.ID, files[0])
 		if err != nil {
 			h.logger.Error("save receipt", zap.Error(err))
 			return errPage(c, fiber.StatusInternalServerError, "Error subiendo comprobante", err.Error())
 		}
 		rec.ComprobantePath = path
-		rec.Status = "reserva confirmada, saldo pendiente"
+		rec.Status = "comprobante recibido, en validación"
 	}
 
-	ctx, cancel := context.WithTimeout(c.UserContext(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(c.UserContext(), 15*time.Second)
 	defer cancel()
 	if err := h.repo.Insert(ctx, rec); err != nil {
 		h.logger.Error("insert inscripcion", zap.Error(err))
 		return errPage(c, fiber.StatusInternalServerError, "Error guardando inscripción", err.Error())
 	}
 
-	go h.notifyDirector(*rec, *plan)
+	// For digital methods, mint a Bold link tailored to the chosen method.
+	var checkoutURL string
+	if method.BoldMethod != "" {
+		url, err := h.CreateBoldLink(ctx, method.BoldMethod, rec.MontoCOP, rec.ID,
+			boldDescription(modalidad.ID, rec.Edad), rec.Email)
+		if err != nil {
+			h.logger.Error("bold link create failed", zap.Error(err))
+			// Fall back to the static reservation link so the user can still pay.
+			url = ReservaBoldLink + "?reference=" + rec.ID
+		}
+		checkoutURL = url
+	}
+
+	go h.notifyDirector(*rec, *modalidad, *method, checkoutURL)
+	go h.pushToSheets(context.Background(), *rec, modalidad.ID, checkoutURL)
 
 	c.Set("Content-Type", "text/html; charset=utf-8")
-	return c.SendString(renderSuccess(rec, plan))
+	return c.SendString(renderSuccess(rec, modalidad, method, checkoutURL))
 }
 
-// parseForm extracts and validates form fields.
-func parseForm(form *multipart.Form) (*storage.InscripcionRecord, *Plan, error) {
+// parseForm extracts and validates form fields. Returns the partial record,
+// the chosen Modalidad and PaymentMethod.
+func parseForm(form *multipart.Form) (*storage.InscripcionRecord, *Modalidad, *PaymentMethod, error) {
 	get := func(k string) string {
 		v := form.Value[k]
 		if len(v) == 0 {
@@ -296,7 +349,7 @@ func parseForm(form *multipart.Form) (*storage.InscripcionRecord, *Plan, error) 
 		Email:            strings.ToLower(get("email")),
 		MetodoPago:       get("metodo_pago"),
 		FechaCurso:       get("fecha_curso"),
-		Plan:             get("plan"),
+		Plan:             DefaultPlanID,
 		NombrePiloto:     get("nombre_piloto"),
 		TipoDocumento:    get("tipo_documento"),
 		NumeroDocumento:  get("numero_documento"),
@@ -310,76 +363,60 @@ func parseForm(form *multipart.Form) (*storage.InscripcionRecord, *Plan, error) 
 	}
 
 	if rec.Email == "" || !validEmail(rec.Email) {
-		return nil, nil, errors.New("email inválido")
+		return nil, nil, nil, errors.New("email inválido")
 	}
 	if rec.NombrePiloto == "" {
-		return nil, nil, errors.New("nombre del piloto es obligatorio")
+		return nil, nil, nil, errors.New("nombre del piloto es obligatorio")
 	}
 	if rec.NumeroDocumento == "" {
-		return nil, nil, errors.New("número de documento es obligatorio")
+		return nil, nil, nil, errors.New("número de documento es obligatorio")
 	}
 	if rec.Telefono == "" {
-		return nil, nil, errors.New("teléfono es obligatorio")
+		return nil, nil, nil, errors.New("teléfono es obligatorio")
 	}
 	if rec.EPS == "" || rec.GrupoSanguineo == "" {
-		return nil, nil, errors.New("EPS y grupo sanguíneo son obligatorios")
+		return nil, nil, nil, errors.New("EPS y grupo sanguíneo son obligatorios")
 	}
 	if rec.FamiliarNombre == "" || rec.FamiliarTelefono == "" {
-		return nil, nil, errors.New("contacto familiar de emergencia es obligatorio")
+		return nil, nil, nil, errors.New("contacto familiar de emergencia es obligatorio")
 	}
 
 	edadStr := get("edad")
 	if edadStr == "" {
-		return nil, nil, errors.New("edad es obligatoria")
+		return nil, nil, nil, errors.New("edad es obligatoria")
 	}
 	edad, err := strconv.Atoi(edadStr)
 	if err != nil || edad < 8 || edad > 90 {
-		return nil, nil, errors.New("edad fuera de rango (8-90)")
+		return nil, nil, nil, errors.New("edad fuera de rango (8-90)")
 	}
 	rec.Edad = edad
 
-	plan := findPlan(rec.Plan)
-	if plan == nil {
-		return nil, nil, errors.New("plan inválido")
+	modalidad := findModalidad(get("modalidad"))
+	if modalidad == nil {
+		return nil, nil, nil, errors.New("modalidad inválida (elige reserva o pago completo)")
+	}
+	rec.Plan = modalidad.ID
+
+	method := findMethod(rec.MetodoPago)
+	if method == nil {
+		return nil, nil, nil, errors.New("método de pago inválido")
+	}
+	if !validDate(rec.FechaCurso) {
+		return nil, nil, nil, errors.New("fecha de curso inválida")
 	}
 
-	monto := plan.PriceCOP
-	if rec.MetodoPago == "bold" {
+	monto := modalidad.PriceCOP
+	if method.ID == "tarjeta" {
 		monto = monto + (monto*CardSurchargePct)/100
 	}
 	rec.MontoCOP = monto
 
-	if !validDate(rec.FechaCurso) {
-		return nil, nil, errors.New("fecha de curso inválida")
-	}
-	if !validMethod(rec.MetodoPago) {
-		return nil, nil, errors.New("método de pago inválido")
-	}
-
-	return rec, plan, nil
-}
-
-func findPlan(id string) *Plan {
-	for i := range Plans {
-		if Plans[i].ID == id {
-			return &Plans[i]
-		}
-	}
-	return nil
+	return rec, modalidad, method, nil
 }
 
 func validDate(d string) bool {
 	for _, c := range CourseDates {
 		if c == d {
-			return true
-		}
-	}
-	return false
-}
-
-func validMethod(m string) bool {
-	for _, p := range PaymentMethods {
-		if p.ID == m {
 			return true
 		}
 	}
@@ -415,18 +452,18 @@ func (h *Handler) saveReceipt(id string, fh *multipart.FileHeader) (string, erro
 	return out, nil
 }
 
-func (h *Handler) notifyDirector(rec storage.InscripcionRecord, plan Plan) {
+func (h *Handler) notifyDirector(rec storage.InscripcionRecord, modalidad Modalidad, method PaymentMethod, checkoutURL string) {
 	if h.cfg.TelegramBotToken == "" || h.cfg.TelegramChatID == "" {
 		h.logger.Info("inscripcion received (no Telegram configured)",
 			zap.String("id", rec.ID),
 			zap.String("piloto", rec.NombrePiloto),
 			zap.String("email", rec.Email),
-			zap.String("plan", rec.Plan),
+			zap.String("modalidad", modalidad.ID),
 			zap.Int("monto", rec.MontoCOP))
 		return
 	}
 
-	caption := buildTelegramMessage(rec, plan)
+	caption := buildTelegramMessage(rec, modalidad, method, checkoutURL)
 
 	if rec.ComprobantePath != "" {
 		if err := h.tgSendPhoto(rec.ComprobantePath, caption); err != nil {
@@ -443,15 +480,18 @@ func (h *Handler) notifyDirector(rec storage.InscripcionRecord, plan Plan) {
 	}
 }
 
-func buildTelegramMessage(rec storage.InscripcionRecord, plan Plan) string {
+func buildTelegramMessage(rec storage.InscripcionRecord, modalidad Modalidad, method PaymentMethod, checkoutURL string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "🏁 *Nueva inscripción* — %s\n\n", tgEscape(plan.Label))
+	fmt.Fprintf(&b, "🏁 *Nueva inscripción* — %s\n\n", tgEscape(modalidad.Label))
 	fmt.Fprintf(&b, "*ID:* `%s`\n", tgEscape(rec.ID))
 	fmt.Fprintf(&b, "*Estado:* %s\n", tgEscape(rec.Status))
 	fmt.Fprintf(&b, "*Monto:* $%s COP\n", tgEscape(formatCOP(rec.MontoCOP)))
-	fmt.Fprintf(&b, "*Pago:* %s\n", tgEscape(rec.MetodoPago))
-	fmt.Fprintf(&b, "*Fecha curso:* %s\n\n", tgEscape(rec.FechaCurso))
-	fmt.Fprintf(&b, "👤 *Piloto*\n")
+	fmt.Fprintf(&b, "*Pago:* %s\n", tgEscape(method.Label))
+	fmt.Fprintf(&b, "*Fecha curso:* %s\n", tgEscape(rec.FechaCurso))
+	if checkoutURL != "" {
+		fmt.Fprintf(&b, "*Link Bold:* %s\n", checkoutURL)
+	}
+	b.WriteString("\n👤 *Piloto*\n")
 	fmt.Fprintf(&b, "%s, %d años\n", tgEscape(rec.NombrePiloto), rec.Edad)
 	fmt.Fprintf(&b, "%s %s\n", tgEscape(rec.TipoDocumento), tgEscape(rec.NumeroDocumento))
 	fmt.Fprintf(&b, "📱 %s\n", tgEscape(rec.Telefono))
@@ -566,29 +606,37 @@ const errorHTML = `<!doctype html><html lang="es"><head><meta charset="utf-8"><t
 <style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#0f0f1e;color:#fff;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}.card{background:#1a1a2e;padding:32px;border-radius:12px;max-width:480px;text-align:center}h1{color:#ff6b6b;margin:0 0 12px}p{color:#bcbccc;line-height:1.5}a{color:#ffb800;text-decoration:none}</style>
 </head><body><div class="card"><h1>{{TITLE}}</h1><p>{{DETAIL}}</p><p><a href="/inscripcion">← Volver al formulario</a></p></div></body></html>`
 
-func renderSuccess(rec *storage.InscripcionRecord, plan *Plan) string {
-	nextStep := "Tu reserva quedó registrada. Pronto te contactaremos por WhatsApp para confirmar."
-	if rec.MetodoPago == "bold" {
-		nextStep = "Completa el pago de la reserva ($150.000) con Bold para confirmar tu cupo."
+func renderSuccess(rec *storage.InscripcionRecord, modalidad *Modalidad, method *PaymentMethod, checkoutURL string) string {
+	nextStep := "Tu inscripción quedó registrada. Pronto te contactaremos por WhatsApp para confirmar."
+	if checkoutURL != "" {
+		nextStep = fmt.Sprintf("Continúa al pago seguro con %s. Tu cupo se confirma automáticamente al recibir el pago.", method.Label)
+	} else if method.ID == "transferencia" {
+		nextStep = "Recibimos tu comprobante. Lo validaremos y te contactaremos por WhatsApp para confirmar."
+	}
+
+	bigBoldButton := ""
+	if checkoutURL != "" {
+		bigBoldButton = fmt.Sprintf(`<a href="%s" target="_blank" class="bold-btn">💳 Continuar al pago — $%s COP →</a>`,
+			htmlEscape(checkoutURL), formatCOP(rec.MontoCOP))
 	}
 
 	r := strings.NewReplacer(
 		"{{ID}}", htmlEscape(rec.ID),
 		"{{NOMBRE}}", htmlEscape(rec.NombrePiloto),
-		"{{PLAN}}", htmlEscape(plan.Label),
+		"{{PLAN}}", htmlEscape(modalidad.Label),
 		"{{MONTO}}", formatCOP(rec.MontoCOP),
 		"{{FECHA}}", htmlEscape(rec.FechaCurso),
 		"{{STATUS}}", htmlEscape(rec.Status),
 		"{{EMAIL}}", htmlEscape(rec.Email),
 		"{{NEXT_STEP}}", htmlEscape(nextStep),
+		"{{METHOD}}", htmlEscape(method.Label),
+		"{{CHECKOUT_BUTTON}}", bigBoldButton,
 	)
 	out := r.Replace(successHTML)
 
-	// If user picked Bold, auto-open the checkout in a new tab once the page loads.
-	if rec.MetodoPago == "bold" {
-		// Use ?reference= so Bold echoes it back as data.metadata.reference in the webhook.
-		boldURL := ReservaBoldLink + "?reference=" + rec.ID
-		autoOpen := fmt.Sprintf(`<script>setTimeout(function(){window.open(%q,'_blank');},800);</script></body>`, boldURL)
+	// Auto-open the Bold checkout once the page loads, only when we have a URL.
+	if checkoutURL != "" {
+		autoOpen := fmt.Sprintf(`<script>setTimeout(function(){window.open(%q,'_blank');},800);</script></body>`, checkoutURL)
 		out = strings.Replace(out, "</body>", autoOpen, 1)
 	}
 	return out

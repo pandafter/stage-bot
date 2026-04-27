@@ -172,19 +172,40 @@
       </div>
 
       <form id="enrollForm" method="POST" action="/inscripcion" enctype="multipart/form-data" novalidate>
-        <input type="hidden" name="plan" value="preventa">
 
-        <!-- 1. MÉTODO DE PAGO -->
+        <!-- 1. MODALIDAD -->
         <div class="form-section">
-          <div class="form-section-title"><span class="form-section-num">1</span>Método de Pago</div>
+          <div class="form-section-title"><span class="form-section-num">1</span>¿Cómo quieres pagar?</div>
+          <p style="font-size:13px;color:var(--text-dim);margin-top:12px;margin-bottom:4px;">Elige la modalidad de tu inscripción:</p>
+          <div class="date-opts" id="modalidadOpts" style="margin-top:12px;">
+            <label class="date-opt">
+              <input type="radio" name="modalidad" value="reserva" required checked>
+              <div class="date-opt-num">$150K</div>
+              <div class="date-opt-month">Solo reserva</div>
+              <div class="date-opt-detail">Asegura tu cupo · saldo el día del curso</div>
+            </label>
+            <label class="date-opt">
+              <input type="radio" name="modalidad" value="completo">
+              <div class="date-opt-num">$730K</div>
+              <div class="date-opt-month">Pago completo</div>
+              <div class="date-opt-detail">Preventa · sin pendientes</div>
+            </label>
+          </div>
+          <div id="modalidadError" class="field-error" style="margin-top:8px;display:none;">Selecciona la modalidad</div>
+        </div>
+
+        <!-- 2. MÉTODO DE PAGO -->
+        <div class="form-section">
+          <div class="form-section-title"><span class="form-section-num">2</span>Método de Pago</div>
+          <p style="font-size:13px;color:var(--text-dim);margin-top:12px;margin-bottom:4px;">Pagas en línea con Bold y tu cupo se confirma automáticamente. <strong style="color:var(--gold);">El comprobante se genera solo</strong> — no necesitas adjuntarlo.</p>
           <div class="payment-opts" id="paymentOpts">
             <label class="pay-opt">
-              <input type="radio" name="metodo_pago" value="bancolombia" required>
+              <input type="radio" name="metodo_pago" value="tarjeta" required>
               <div class="pay-indicator"></div>
-              <img src="/inscripcion/assets/bancolombiaLogo.png" class="pay-icon-img" alt="Bancolombia">
+              <span class="pay-icon">💳</span>
               <div class="pay-info">
-                <div class="pay-name">Bancolombia</div>
-                <div class="pay-detail">Transferencia a cta ahorros 91200438910</div>
+                <div class="pay-name">Tarjeta de crédito / débito</div>
+                <div class="pay-detail">Visa · Mastercard · Amex · Diners — recargo +5%</div>
               </div>
             </label>
             <label class="pay-opt">
@@ -193,29 +214,49 @@
               <img src="/inscripcion/assets/nequiLogo.webp" class="pay-icon-img" alt="Nequi">
               <div class="pay-info">
                 <div class="pay-name">Nequi</div>
-                <div class="pay-detail">Transferencia a CC 1031148199 · 3059456266</div>
+                <div class="pay-detail">Pago directo desde tu app Nequi</div>
               </div>
             </label>
             <label class="pay-opt">
-              <input type="radio" name="metodo_pago" value="bold">
+              <input type="radio" name="metodo_pago" value="bancolombia">
               <div class="pay-indicator"></div>
-              <svg class="pay-icon-img" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="2" y="4" width="20" height="16" rx="2"/>
-                <line x1="22" y1="4" x2="22" y2="4.01"/>
-                <line x1="2" y1="10" x2="22" y2="10"/>
-              </svg>
+              <img src="/inscripcion/assets/bancolombiaLogo.png" class="pay-icon-img" alt="Bancolombia">
               <div class="pay-info">
-                <div class="pay-name">Bold — Tarjeta de Crédito</div>
-                <div class="pay-detail">Pago seguro en línea · Confirmación inmediata · +5%</div>
+                <div class="pay-name">Botón Bancolombia</div>
+                <div class="pay-detail">Débito directo desde tu cuenta Bancolombia</div>
+              </div>
+            </label>
+            <label class="pay-opt">
+              <input type="radio" name="metodo_pago" value="pse">
+              <div class="pay-indicator"></div>
+              <span class="pay-icon">🏦</span>
+              <div class="pay-info">
+                <div class="pay-name">PSE — otros bancos</div>
+                <div class="pay-detail">Davivienda, BBVA, Banco de Bogotá, Caja Social…</div>
               </div>
             </label>
           </div>
           <div id="payError" class="field-error" style="margin-top:8px;display:none;">Selecciona un método de pago</div>
+
+          <details style="margin-top:14px;">
+            <summary style="cursor:pointer;font-size:12px;color:var(--text-dimmer);letter-spacing:.08em;text-transform:uppercase;outline:none;user-select:none;">Otra forma de pago — transferencia manual</summary>
+            <div style="margin-top:10px;">
+              <label class="pay-opt">
+                <input type="radio" name="metodo_pago" value="transferencia">
+                <div class="pay-indicator"></div>
+                <span class="pay-icon">📋</span>
+                <div class="pay-info">
+                  <div class="pay-name">Transferencia + comprobante</div>
+                  <div class="pay-detail">Transfiere por tu cuenta y adjunta el comprobante</div>
+                </div>
+              </label>
+            </div>
+          </details>
         </div>
 
-        <!-- 2. FECHA -->
+        <!-- 3. FECHA -->
         <div class="form-section">
-          <div class="form-section-title"><span class="form-section-num">2</span>Fecha del Curso</div>
+          <div class="form-section-title"><span class="form-section-num">3</span>Fecha del Curso</div>
           <p style="font-size:13px;color:var(--text-dim);margin-top:12px;margin-bottom:4px;">Selecciona las fechas en que realizarás tu curso:</p>
           <div class="date-opts" id="dateOpts">
             <label class="date-opt">
@@ -234,10 +275,14 @@
           <div id="dateError" class="field-error" style="margin-top:8px;display:none;">Selecciona una fecha</div>
         </div>
 
-        <!-- 3. COMPROBANTE -->
-        <div class="form-section">
-          <div class="form-section-title"><span class="form-section-num">3</span>Comprobante de Pago</div>
-          <p style="font-size:13px;color:var(--text-dim);margin:12px 0 16px;">Sube la imagen o screenshot de tu transferencia (máx. 10 MB). Si pagaste con Bold, sube el comprobante después del pago.</p>
+        <!-- 4. COMPROBANTE (solo aparece para transferencia manual) -->
+        <div class="form-section" id="comprobanteSection" style="display:none;">
+          <div class="form-section-title"><span class="form-section-num">★</span>Comprobante de transferencia</div>
+          <div style="background:rgba(245,193,0,.08);border:1px solid rgba(245,193,0,.25);padding:14px 16px;font-size:12px;color:var(--gold);line-height:1.6;margin:12px 0 14px;">
+            Transfiere a una de estas cuentas:<br>
+            <strong style="color:var(--text);">Bancolombia ahorros 91200438910</strong> (Andrés Camilo Melo · CC 1031148199)<br>
+            <strong style="color:var(--text);">Nequi 305 945 6266</strong>
+          </div>
           <div class="file-upload" id="fileUpload">
             <input type="file" name="comprobante" id="paymentFile" accept="image/*,.pdf">
             <div class="file-icon" id="fileIcon">📎</div>
@@ -250,7 +295,7 @@
           <div id="fileError" class="field-error" style="margin-top:8px;display:none;">Sube el comprobante de pago</div>
         </div>
 
-        <!-- 4. PILOTO -->
+        <!-- 5. PILOTO -->
         <div class="form-section">
           <div class="form-section-title"><span class="form-section-num">4</span>Datos del Piloto</div>
           <div class="form-grid">
@@ -319,7 +364,7 @@
           </div>
         </div>
 
-        <!-- 5. EMERGENCIA -->
+        <!-- 6. EMERGENCIA -->
         <div class="form-section">
           <div class="form-section-title"><span class="form-section-num">5</span>Contacto de Emergencia</div>
           <div class="form-grid">
@@ -336,7 +381,7 @@
           </div>
         </div>
 
-        <!-- 6. TÉRMINOS -->
+        <!-- 7. TÉRMINOS -->
         <div class="form-section">
           <div class="form-section-title"><span class="form-section-num">6</span>Términos y Responsabilidad</div>
           <div class="terms-box">
@@ -406,17 +451,37 @@
 </div>
 
 <script>
+const comprobanteSection = document.getElementById('comprobanteSection');
+
+function refreshComprobante(){
+  const sel = document.querySelector('input[name=metodo_pago]:checked');
+  const isManual = sel && sel.value === 'transferencia';
+  comprobanteSection.style.display = isManual ? 'block' : 'none';
+}
+
 document.querySelectorAll('.pay-opt input[type=radio]').forEach(radio => {
   radio.addEventListener('change', () => {
     document.querySelectorAll('.pay-opt').forEach(o => o.classList.remove('selected'));
     radio.closest('.pay-opt').classList.add('selected');
     document.getElementById('payError').style.display = 'none';
+    refreshComprobante();
   });
 });
 
-document.querySelectorAll('.date-opt input[type=radio]').forEach(radio => {
+document.querySelectorAll('input[name=modalidad]').forEach(radio => {
   radio.addEventListener('change', () => {
-    document.querySelectorAll('.date-opt').forEach(o => o.classList.remove('selected'));
+    document.querySelectorAll('#modalidadOpts .date-opt').forEach(o => o.classList.remove('selected'));
+    radio.closest('.date-opt').classList.add('selected');
+    document.getElementById('modalidadError').style.display = 'none';
+  });
+});
+// pre-mark default modalidad
+const defaultMod = document.querySelector('input[name=modalidad]:checked');
+if(defaultMod) defaultMod.closest('.date-opt').classList.add('selected');
+
+document.querySelectorAll('input[name=fecha_curso]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    document.querySelectorAll('#dateOpts .date-opt').forEach(o => o.classList.remove('selected'));
     radio.closest('.date-opt').classList.add('selected');
     document.getElementById('dateError').style.display = 'none';
   });
@@ -461,13 +526,16 @@ function validateField(id, errorId, msg){
 document.getElementById('enrollForm').addEventListener('submit', e => {
   let valid = true;
 
+  const modVal = document.querySelector('input[name=modalidad]:checked');
+  if(!modVal){ document.getElementById('modalidadError').style.display = 'block'; valid = false; }
+
   const payVal = document.querySelector('input[name=metodo_pago]:checked');
   if(!payVal){ document.getElementById('payError').style.display = 'block'; valid = false; }
 
   const dateVal = document.querySelector('input[name=fecha_curso]:checked');
   if(!dateVal){ document.getElementById('dateError').style.display = 'block'; valid = false; }
 
-  const requiresFile = payVal && (payVal.value === 'bancolombia' || payVal.value === 'nequi');
+  const requiresFile = payVal && payVal.value === 'transferencia';
   if(requiresFile && !fileInput.files[0]){ document.getElementById('fileError').style.display = 'block'; valid = false; }
 
   if(!validateField('email','emailError','Ingresa un correo válido')) valid = false;
