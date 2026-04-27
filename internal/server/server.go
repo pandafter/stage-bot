@@ -103,9 +103,10 @@ func (s *Server) setupRoutes(deps Dependencies) {
  		ih := inscripcion.NewHandler(inscripcion.Config{
  			UploadsDir:       s.cfg.UploadsDir,
  			PublicURL:        s.cfg.PublicURL,
- 			TelegramBotToken: s.cfg.TelegramBotToken,
- 			TelegramChatID:   s.cfg.TelegramChatID,
- 			AdminToken:       s.cfg.AdminToken,
+ 			TelegramBotToken:  s.cfg.TelegramBotToken,
+ 			TelegramChatID:    s.cfg.TelegramChatID,
+ 			AdminToken:        s.cfg.AdminToken,
+ 			BoldWebhookSecret: s.cfg.BoldWebhookSecret,
  		}, deps.Inscripciones, s.logger)
  		s.app.Get("/inscripcion", ih.ServeForm)
  		s.app.Post("/inscripcion", ih.Submit)
@@ -113,6 +114,9 @@ func (s *Server) setupRoutes(deps Dependencies) {
  		s.app.Get("/inscripcion/assets/bancolombiaLogo.png", ih.ServeBancolombiaLogo)
  		s.app.Get("/inscripcion/assets/nequiLogo.webp", ih.ServeNequiLogo)
  		s.app.Get("/inscripcion/telegram-test", ih.TelegramTest)
+ 		s.app.Get("/inscripcion/telegram-debug", ih.TelegramDebug)
+ 		s.app.Post("/webhook/bold", ih.BoldWebhook)
+ 		s.app.Get("/inscripcion/bold-debug", ih.BoldDebug)
  		s.app.Get("/", ih.ServeLanding)
  	}
 

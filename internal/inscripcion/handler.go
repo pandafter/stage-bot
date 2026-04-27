@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -85,11 +86,12 @@ var PaymentMethods = []struct {
 }
 
 type Config struct {
-	UploadsDir       string // directory for receipt uploads, e.g. ./uploads
-	PublicURL        string // for absolute redirect after success
-	TelegramBotToken string
-	TelegramChatID   string
-	AdminToken       string // required to call diagnostic endpoints
+	UploadsDir        string // directory for receipt uploads, e.g. ./uploads
+	PublicURL         string // for absolute redirect after success
+	TelegramBotToken  string
+	TelegramChatID    string
+	AdminToken        string // required to call diagnostic endpoints
+	BoldWebhookSecret string // shared secret to verify Bold webhook HMAC
 }
 
 type Handler struct {
@@ -137,6 +139,72 @@ func (h *Handler) ServeNequiLogo(c *fiber.Ctx) error {
 	c.Set("Content-Type", "image/webp")
 	c.Set("Cache-Control", "public, max-age=86400")
 	return c.Send(nequiLogoWEBP)
+}
+
+// TelegramDebug returns the bot identity (getMe) and the latest chats it has
+// seen messages from (getUpdates). Use this to find the correct chat_id.
+// Protected by the ADMIN_TOKEN query param.
+func (h *Handler) TelegramDebug(c *fiber.Ctx) error {
+	if h.cfg.AdminToken == "" || c.Query("token") != h.cfg.AdminToken {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"ok": false, "error": "unauthorized"})
+	}
+	if h.cfg.TelegramBotToken == "" {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"ok": false, "error": "TELEGRAM_BOT_TOKEN missing"})
+	}
+	out := fiber.Map{
+		"configured_chat_id": h.cfg.TelegramChatID,
+	}
+	if me, err := tgGetJSON(h.cfg.TelegramBotToken, "getMe"); err == nil {
+		out["getMe"] = me
+	} else {
+		out["getMe_error"] = err.Error()
+	}
+	if upd, err := tgGetJSON(h.cfg.TelegramBotToken, "getUpdates"); err == nil {
+		// Extract just the chats the bot has seen, to make the response readable.
+		seen := map[string]any{}
+		if result, ok := upd["result"].([]any); ok {
+			for _, u := range result {
+				if m, ok := u.(map[string]any); ok {
+					var msg map[string]any
+					if x, ok := m["message"].(map[string]any); ok {
+						msg = x
+					} else if x, ok := m["channel_post"].(map[string]any); ok {
+						msg = x
+					} else if x, ok := m["my_chat_member"].(map[string]any); ok {
+						msg = x
+					}
+					if msg == nil {
+						continue
+					}
+					if chat, ok := msg["chat"].(map[string]any); ok {
+						id := fmt.Sprint(chat["id"])
+						seen[id] = chat
+					}
+				}
+			}
+		}
+		out["chats_seen"] = seen
+		out["raw_updates_count"] = len(upd["result"].([]any))
+		out["hint"] = "Si el grupo no aparece en chats_seen, manda un mensaje en el grupo (con el bot dentro) y vuelve a refrescar."
+	} else {
+		out["getUpdates_error"] = err.Error()
+	}
+	return c.JSON(out)
+}
+
+func tgGetJSON(token, method string) (map[string]any, error) {
+	url := fmt.Sprintf("https://api.telegram.org/bot%s/%s", token, method)
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	var out map[string]any
+	if err := json.Unmarshal(body, &out); err != nil {
+		return nil, fmt.Errorf("decode: %w (body=%s)", err, string(body))
+	}
+	return out, nil
 }
 
 // TelegramTest sends a test notification to the configured chat. Useful to
@@ -518,7 +586,8 @@ func renderSuccess(rec *storage.InscripcionRecord, plan *Plan) string {
 
 	// If user picked Bold, auto-open the checkout in a new tab once the page loads.
 	if rec.MetodoPago == "bold" {
-		boldURL := ReservaBoldLink + "?ref=" + rec.ID
+		// Use ?reference= so Bold echoes it back as data.metadata.reference in the webhook.
+		boldURL := ReservaBoldLink + "?reference=" + rec.ID
 		autoOpen := fmt.Sprintf(`<script>setTimeout(function(){window.open(%q,'_blank');},800);</script></body>`, boldURL)
 		out = strings.Replace(out, "</body>", autoOpen, 1)
 	}

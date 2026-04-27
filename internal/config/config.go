@@ -64,9 +64,10 @@ type Config struct {
 	ClaudePriceOutputPerMTok float64
 
 	// Inscripcion (public registration form)
-	UploadsDir       string
-	TelegramBotToken string
-	TelegramChatID   string
+	UploadsDir        string
+	TelegramBotToken  string
+	TelegramChatID    string
+	BoldWebhookSecret string
 }
 
 func Load() (*Config, error) {
@@ -102,6 +103,7 @@ func Load() (*Config, error) {
 		UploadsDir:               getEnv("UPLOADS_DIR", "./uploads"),
 		TelegramBotToken:         getEnv("TELEGRAM_BOT_TOKEN", ""),
 		TelegramChatID:           getEnv("TELEGRAM_CHAT_ID", ""),
+		BoldWebhookSecret:        getEnv("BOLD_WEBHOOK_SECRET", ""),
 	}
 
 	cfg.PublicURL = normalizePublicURL(cfg.PublicURL)
