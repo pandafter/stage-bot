@@ -5,6 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <title>Inscripción — Scudería St4ge</title>
+  <link rel="icon" type="image/jpeg" href="/inscripcion/logo.jpg">
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Inscripción — Scudería St4ge">
+  <meta property="og:description" content="Completa tu inscripción al curso de piloto profesional de Scudería St4ge.">
+  <meta property="og:image" content="https://scuderiast4ge.com/inscripcion/logo.jpg">
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Inscripción — Scudería St4ge">
+  <meta name="twitter:description" content="Completa tu inscripción al curso de piloto profesional de Scudería St4ge.">
+  <meta name="twitter:image" content="https://scuderiast4ge.com/inscripcion/logo.jpg">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;0,800;0,900;1,700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -77,9 +88,10 @@
     .pay-opt.selected { border-color: var(--gold); background: var(--gold-dim); }
     .pay-opt input[type=radio] { display: none; }
     .pay-indicator { width: 16px; height: 16px; border: 1px solid var(--border2); background: var(--surface); flex-shrink: 0; border-radius: 50%; transition: border-color .2s; }
-    .pay-opt.selected .pay-indicator { border-color: var(--gold); background: var(--gold); }
-    .pay-icon { font-size: 24px; }
-    .pay-info { flex: 1; }
+     .pay-opt.selected .pay-indicator { border-color: var(--gold); background: var(--gold); }
+     .pay-icon { font-size: 24px; }
+     .pay-icon-img { width: 80px; height: 28px; object-fit: contain; }
+     .pay-info { flex: 1; }
     .pay-name { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 800; text-transform: uppercase; }
     .pay-detail { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
 
@@ -169,7 +181,7 @@
             <label class="pay-opt">
               <input type="radio" name="metodo_pago" value="bancolombia" required>
               <div class="pay-indicator"></div>
-              <span class="pay-icon">🟡</span>
+              <img src="/inscripcion/assets/bancolombiaLogo.png" class="pay-icon-img" alt="Bancolombia">
               <div class="pay-info">
                 <div class="pay-name">Bancolombia</div>
                 <div class="pay-detail">Transferencia a cta ahorros 91200438910</div>
@@ -178,7 +190,7 @@
             <label class="pay-opt">
               <input type="radio" name="metodo_pago" value="nequi">
               <div class="pay-indicator"></div>
-              <span class="pay-icon">🟣</span>
+              <img src="/inscripcion/assets/nequiLogo.webp" class="pay-icon-img" alt="Nequi">
               <div class="pay-info">
                 <div class="pay-name">Nequi</div>
                 <div class="pay-detail">Transferencia a CC 1031148199 · 3059456266</div>
@@ -187,7 +199,11 @@
             <label class="pay-opt">
               <input type="radio" name="metodo_pago" value="bold">
               <div class="pay-indicator"></div>
-              <span class="pay-icon">💳</span>
+              <svg class="pay-icon-img" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                <line x1="22" y1="4" x2="22" y2="4.01"/>
+                <line x1="2" y1="10" x2="22" y2="10"/>
+              </svg>
               <div class="pay-info">
                 <div class="pay-name">Bold — Tarjeta de Crédito</div>
                 <div class="pay-detail">Pago seguro en línea · Confirmación inmediata · +5%</div>

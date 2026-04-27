@@ -99,18 +99,22 @@ func (s *Server) setupRoutes(deps Dependencies) {
 	// MCP spec also asks for dynamic client registration metadata; we accept any client.
 	s.app.Post("/mcp/register", mcpHandler.DynamicClientRegister)
 
-	if deps.Inscripciones != nil {
-		ih := inscripcion.NewHandler(inscripcion.Config{
-			UploadsDir:       s.cfg.UploadsDir,
-			PublicURL:        s.cfg.PublicURL,
-			TelegramBotToken: s.cfg.TelegramBotToken,
-			TelegramChatID:   s.cfg.TelegramChatID,
-		}, deps.Inscripciones, s.logger)
-		s.app.Get("/inscripcion", ih.ServeForm)
-		s.app.Post("/inscripcion", ih.Submit)
-		s.app.Get("/inscripcion/logo.jpg", ih.ServeLogo)
-		s.app.Get("/", ih.ServeLanding)
-	}
+ 	if deps.Inscripciones != nil {
+ 		ih := inscripcion.NewHandler(inscripcion.Config{
+ 			UploadsDir:       s.cfg.UploadsDir,
+ 			PublicURL:        s.cfg.PublicURL,
+ 			TelegramBotToken: s.cfg.TelegramBotToken,
+ 			TelegramChatID:   s.cfg.TelegramChatID,
+ 			AdminToken:       s.cfg.AdminToken,
+ 		}, deps.Inscripciones, s.logger)
+ 		s.app.Get("/inscripcion", ih.ServeForm)
+ 		s.app.Post("/inscripcion", ih.Submit)
+ 		s.app.Get("/inscripcion/logo.jpg", ih.ServeLogo)
+ 		s.app.Get("/inscripcion/assets/bancolombiaLogo.png", ih.ServeBancolombiaLogo)
+ 		s.app.Get("/inscripcion/assets/nequiLogo.webp", ih.ServeNequiLogo)
+ 		s.app.Get("/inscripcion/telegram-test", ih.TelegramTest)
+ 		s.app.Get("/", ih.ServeLanding)
+ 	}
 
 	if deps.Leads != nil && deps.Conversation != nil {
 		ah := admin.NewHandler(s.cfg, deps.Leads, deps.Conversation, deps.Messenger, deps.AI, deps.Queue, s.logger)

@@ -35,8 +35,14 @@ var landingHTML string
 //go:embed success.html
 var successHTML string
 
-	//go:embed assets/logo.jpg
-	var logoJPG []byte
+//go:embed assets/logo.jpg
+var logoJPG []byte
+
+//go:embed assets/bancolombiaLogo.png
+var bancolombiaLogoPNG []byte
+
+//go:embed assets/nequiLogo.webp
+var nequiLogoWEBP []byte
 
 // Plan describes a registration plan.
 type Plan struct {
@@ -83,6 +89,7 @@ type Config struct {
 	PublicURL        string // for absolute redirect after success
 	TelegramBotToken string
 	TelegramChatID   string
+	AdminToken       string // required to call diagnostic endpoints
 }
 
 type Handler struct {
@@ -116,6 +123,50 @@ func (h *Handler) ServeLogo(c *fiber.Ctx) error {
 	c.Set("Content-Type", "image/jpeg")
 	c.Set("Cache-Control", "public, max-age=86400")
 	return c.Send(logoJPG)
+}
+
+// ServeBancolombiaLogo serves bancolombia logo.
+func (h *Handler) ServeBancolombiaLogo(c *fiber.Ctx) error {
+	c.Set("Content-Type", "image/png")
+	c.Set("Cache-Control", "public, max-age=86400")
+	return c.Send(bancolombiaLogoPNG)
+}
+
+// ServeNequiLogo serves nequi logo.
+func (h *Handler) ServeNequiLogo(c *fiber.Ctx) error {
+	c.Set("Content-Type", "image/webp")
+	c.Set("Cache-Control", "public, max-age=86400")
+	return c.Send(nequiLogoWEBP)
+}
+
+// TelegramTest sends a test notification to the configured chat. Useful to
+// verify TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID without doing a full
+// registration. Protected by the ADMIN_TOKEN query param.
+func (h *Handler) TelegramTest(c *fiber.Ctx) error {
+	if h.cfg.AdminToken == "" || c.Query("token") != h.cfg.AdminToken {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"ok":    false,
+			"error": "unauthorized: pass ?token=ADMIN_TOKEN",
+		})
+	}
+	if h.cfg.TelegramBotToken == "" || h.cfg.TelegramChatID == "" {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"ok":     false,
+			"error":  "Telegram no configurado: faltan TELEGRAM_BOT_TOKEN y/o TELEGRAM_CHAT_ID",
+			"hasToken": h.cfg.TelegramBotToken != "",
+			"hasChat":  h.cfg.TelegramChatID != "",
+		})
+	}
+	msg := fmt.Sprintf("✅ *Test de Scudería St4ge* — %s\n\nSi ves este mensaje, la integración con el grupo está activa. Las nuevas inscripciones llegarán aquí con el comprobante adjunto.",
+		time.Now().Format("2006-01-02 15:04:05"))
+	if err := h.tgSendMessage(msg); err != nil {
+		h.logger.Error("telegram test failed", zap.Error(err))
+		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
+			"ok":    false,
+			"error": err.Error(),
+		})
+	}
+	return c.JSON(fiber.Map{"ok": true, "message": "Mensaje enviado al grupo de Telegram"})
 }
 
 // Submit handles POSTed registration data.
