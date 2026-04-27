@@ -109,6 +109,11 @@ func (h *Handler) Receive(c *fiber.Ctx) error {
 		}
 	}
 
+	if !h.cfg.BotEnabled {
+		h.logger.Info("bot disabled — webhook ack only, no processing")
+		return c.SendStatus(fiber.StatusOK)
+	}
+
 	var payload WebhookPayload
 	if err := json.Unmarshal(body, &payload); err != nil {
 		h.logger.Error("failed to parse webhook payload", zap.Error(err))

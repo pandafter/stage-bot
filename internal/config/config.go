@@ -71,6 +71,9 @@ type Config struct {
 	BoldAPIKey        string // identity key for Bold's POST link creation API
 	SheetsWebhookURL  string // Apps Script web app URL receiving inscripciones
 	SheetsSharedToken string // shared secret echoed back to verify the call
+
+	// Kill-switch: cuando es false el webhook acepta pero no procesa mensajes.
+	BotEnabled bool
 }
 
 func Load() (*Config, error) {
@@ -110,6 +113,7 @@ func Load() (*Config, error) {
 		BoldAPIKey:               getEnv("BOLD_API_KEY", ""),
 		SheetsWebhookURL:         getEnv("SHEETS_WEBHOOK_URL", ""),
 		SheetsSharedToken:        getEnv("SHEETS_SHARED_TOKEN", ""),
+		BotEnabled:               getBoolEnv("BOT_ENABLED", false),
 	}
 
 	cfg.PublicURL = normalizePublicURL(cfg.PublicURL)
@@ -171,6 +175,21 @@ func getIntEnv(key string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func getBoolEnv(key string, fallback bool) bool {
+	val := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	if val == "" {
+		return fallback
+	}
+	switch val {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
+	}
 }
 
 func getFloatEnv(key string, fallback float64) float64 {
