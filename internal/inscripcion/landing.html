@@ -122,11 +122,14 @@
     .event-arrow { position: absolute; bottom: 36px; right: 36px; color: var(--gold); font-size: 24px; opacity: 0; transition: opacity .2s, transform .2s; }
     .event-card:hover .event-arrow { opacity: 1; transform: translate(4px, -4px); }
 
-    .testimonials-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .testimonials-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; height: 400px;}
     .video-card { background: var(--surface); border: 1px solid var(--border); overflow: hidden; text-decoration: none; color: inherit; display: block; transition: border-color .2s, transform .2s; }
     .video-card:hover { border-color: var(--gold); transform: translateY(-3px); }
     .video-thumb { aspect-ratio: 9/16; max-height: 380px; background: var(--surface2); position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-    .vthumb-pattern { position: absolute; inset: 0; background: repeating-linear-gradient(-45deg, rgba(255,255,255,.02) 0, rgba(255,255,255,.02) 1px, transparent 1px, transparent 14px); }
+    .video-thumb iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; z-index: 1; }
+    .review-thumb { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: radial-gradient(ellipse at 50% 30%, rgba(245,193,0,0.08) 0%, transparent 60%), var(--surface2); z-index: 2; padding: 40px 20px; }
+    .vthumb-pattern { position: absolute; inset: 0; background: repeating-linear-gradient(-45deg, rgba(255,255,255,.02) 0, rgba(255,255,255,.02) 1px, transparent 1px, transparent 14px); pointer-events: none; z-index: 3; }
+    .vthumb-pattern { position: absolute; inset: 0; background: repeating-linear-gradient(-45deg, rgba(255,255,255,.02) 0, rgba(255,255,255,.02) 1px, transparent 1px, transparent 14px); pointer-events: none; }
     .vthumb-glow { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(245,193,0,.06), transparent 70%); }
     .play-btn { width: 68px; height: 68px; background: var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; position: relative; z-index: 2; transition: transform .2s; }
     .video-card:hover .play-btn { transform: scale(1.12); }
@@ -141,15 +144,17 @@
     .gal-item:first-child { grid-column: span 2; grid-row: span 2; aspect-ratio: auto; min-height: 320px; }
     .gal-item:nth-child(6) { grid-column: span 2; }
     .gal-ph { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: repeating-linear-gradient(-45deg, var(--surface2) 0, var(--surface2) 9px, var(--surface) 9px, var(--surface) 18px); transition: filter .2s; }
+    .gal-ph video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
     .gal-item:hover .gal-ph { filter: brightness(1.4); }
-    .gal-ph span { font-family: monospace; font-size: 10px; color: var(--text-dimmer); text-align: center; padding: 0 16px; }
-    .gal-icon { font-size: 28px; color: var(--text-dimmer); }
+    .gal-ph span { position: relative; z-index: 2; font-family: monospace; font-size: 10px; color: var(--text-dimmer); text-align: center; padding: 0 16px; }
+    .gal-icon { display: none; }
 
-    .instructors-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 2px; background: var(--border); }
+    .instructors-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; background: var(--border); }
     .instr-card { background: var(--surface); overflow: hidden; transition: background .2s; }
     .instr-card:hover { background: var(--surface2); }
     .instr-photo { aspect-ratio: 3/4; max-height: 320px; background: var(--surface2); position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-    .instr-photo-ph { position: absolute; inset: 0; background: repeating-linear-gradient(-45deg, var(--surface2) 0, var(--surface2) 9px, var(--surface) 9px, var(--surface) 18px); display: flex; align-items: center; justify-content: center; }
+    .instr-photo-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; justify-content: center; align-items: center; display: flex;}
+    .instr-photo-ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
     .instr-photo-ph span { font-family: monospace; font-size: 11px; color: var(--text-dimmer); }
     .instr-info { padding: 24px 22px; border-top: 1px solid var(--border); }
     .instr-name { font-family: 'Barlow Condensed', sans-serif; font-size: 24px; font-weight: 800; text-transform: uppercase; line-height: 1; margin-bottom: 4px; }
@@ -409,7 +414,7 @@
     <h2 class="sec-title">Lo dicen<br>nuestros pilotos</h2>
     <p class="sec-sub">Experiencias reales de quienes ya vivieron el curso.</p>
     <div class="testimonials-grid">
-      <iframe src="https://www.instagram.com/reel/DQLA7IyjVBh/embed" target="_blank" rel="noopener" class="video-card" scrolling="no" allowtransparency="true" frameborder="0">
+      <iframe src="https://www.instagram.com/p/DQiFTHnDaAm/embed/" target="_blank" rel="noopener" class="video-card" scrolling="no" allowtransparency="true" frameborder="0" height="110%">
         <div class="video-thumb">
           <div class="vthumb-pattern"></div>
           <div class="vthumb-glow"></div>
@@ -421,7 +426,19 @@
           <div class="video-meta">Anécdotas reales del curso · Instagram Reel</div>
         </div>
       </iframe>
-      <iframe src="https://www.instagram.com/reel/DJSQPCXxkVF/embed" target="_blank" rel="noopener" class="video-card" scrolling="no" allowtransparency="true" frameborder="0">
+       <iframe src="https://www.instagram.com/p/DQLA7IyjVBh/embed/" target="_blank" rel="noopener" class="video-card" scrolling="no" allowtransparency="true" frameborder="0" height="110%">
+        <div class="video-thumb">
+          <div class="vthumb-pattern"></div>
+          <div class="vthumb-glow"></div>
+          <div class="play-btn"><div class="play-icon"></div></div>
+          <div class="video-label">📱 Ver en Instagram</div>
+        </div>
+        <div class="video-info">
+          <div class="video-title">Testimonio piloto #1</div>
+          <div class="video-meta">Anécdotas reales del curso · Instagram Reel</div>
+        </div>
+      </iframe>
+       <iframe src="https://www.instagram.com/p/DPmXHYwCY75/embed" target="_blank" rel="noopener" class="video-card" scrolling="no" allowtransparency="true" frameborder="0" height="110%">
         <div class="video-thumb">
           <div class="vthumb-pattern"></div>
           <div class="vthumb-glow"></div>
@@ -433,20 +450,6 @@
           <div class="video-meta">Anécdotas reales del curso · Instagram Reel</div>
         </div>
       </iframe>
-      <div class="video-card" style="cursor:default;">
-        <div class="video-thumb" style="background:var(--surface2);">
-          <div class="vthumb-pattern"></div>
-          <div style="position:relative;z-index:2;text-align:center;padding:24px;">
-            <div style="font-size:40px;margin-bottom:12px;">⭐⭐⭐⭐⭐</div>
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;text-transform:uppercase;margin-bottom:8px;">"La mejor inversión que he hecho en el deporte"</div>
-            <div style="font-size:13px;color:var(--text-dim);">— Alumno del programa</div>
-          </div>
-        </div>
-        <div class="video-info">
-          <div class="video-title">Reseña del programa</div>
-          <div class="video-meta">Experiencia de piloto graduado</div>
-        </div>
-      </div>
     </div>
   </div>
 </section>
@@ -455,14 +458,39 @@
   <div class="container">
     <div class="sec-label">Galería</div>
     <h2 class="sec-title">En pista</h2>
-    <p class="sec-sub" style="margin-bottom:32px;">Imágenes de nuestros cursos y eventos anteriores.</p>
+    <p class="sec-sub" style="margin-bottom:32px;">Videos de nuestros cursos y eventos anteriores.</p>
     <div class="gallery-grid">
-      <div class="gal-item"><div class="gal-ph"><span class="gal-icon">📷</span><span>foto principal<br>pista / acción</span></div></div>
-      <div class="gal-item"><div class="gal-ph"><span class="gal-icon">📷</span><span>foto kart</span></div></div>
-      <div class="gal-item"><div class="gal-ph"><span class="gal-icon">📷</span><span>foto piloto</span></div></div>
-      <div class="gal-item"><div class="gal-ph"><span class="gal-icon">📷</span><span>foto equipo</span></div></div>
-      <div class="gal-item"><div class="gal-ph"><span class="gal-icon">📷</span><span>foto paddock</span></div></div>
-      <div class="gal-item" style="grid-column:span 2;aspect-ratio:auto;min-height:180px;"><div class="gal-ph"><span class="gal-icon">📷</span><span>foto grupal / entrega diplomas</span></div></div>
+      <div class="gal-item">
+        <div class="gal-ph">
+          <video src="./assets/video1.mp4" muted loop autoplay playsinline></video>
+        </div>
+      </div>
+      <div class="gal-item">
+        <div class="gal-ph">
+          <video src="./assets/video2.mp4" muted loop autoplay playsinline></video>
+        </div>
+      </div>
+      <div class="gal-item">
+        <div class="gal-ph">
+          <video src="./assets/video3.mp4" muted loop autoplay playsinline></video>
+        </div>
+      </div>
+      <div class="gal-item">
+        <div class="gal-ph">
+          <video src="./assets/video4.mp4" muted loop autoplay playsinline></video>
+        </div>
+      </div>
+      <div class="gal-item">
+        <div class="gal-ph">
+            <img src="./assets/imagen1.png" alt="Próximamente" style="width:100%;height:100%">
+        </div>
+      </div>
+      <div class="gal-item" style="grid-column:span 2;aspect-ratio:auto;min-height:180px;">
+        <div class="gal-ph" style="background:linear-gradient(135deg,var(--surface2) 0%,var(--surface) 100%);">
+          <img src="./assets/logo.jpg" alt="Próximamente" style="width:60px;height:60px;opacity:0.3;filter:grayscale(100%);">
+        </div>
+      </div>
+      </div>
     </div>
   </div>
 </section>
@@ -474,21 +502,30 @@
     <p class="sec-sub">Pilotos profesionales con experiencia en competencia real.</p>
     <div class="instructors-grid">
       <div class="instr-card">
-        <div class="instr-photo"><div class="instr-photo-ph"><span>foto instructor</span></div></div>
+        <div class="instr-photo"><img src="./assets/AndresMelo.png" alt="Andrés Camilo Melo" class="instr-photo-img"></div>
         <div class="instr-info">
           <div class="instr-name">Andrés Camilo Melo</div>
           <div class="instr-role">Fundador · Piloto Pro</div>
-          <div class="instr-bio">Director de Scudería St4ge. Piloto profesional con amplia trayectoria en karting nacional. Tu guía principal durante el programa.</div>
+          <div class="instr-bio">Director de Scudería St4ge. Piloto profesional con +10 años de trayectoria en karting nacional y la educacion deportiva. Tu guía principal durante el programa.</div>
         </div>
       </div>
       <div class="instr-card">
-        <div class="instr-photo"><div class="instr-photo-ph"><span>foto instructor 2</span></div></div>
-        <div class="instr-info">
-          <div class="instr-name">Instructor Pista</div>
-          <div class="instr-role">Coach · Preparador Mecánico</div>
-          <div class="instr-bio">Especialista técnico en preparación de karts y análisis de rendimiento en pista. Acompañamiento personalizado durante los 2 días.</div>
+        <div class="instr-photo"><img src="./assets/SantiGutierrez.png" alt="Santiago Gutiérrez" class="instr-photo-img"></div>
+        <div class="instr-info">  
+          <div class="instr-name">Santiago Gutiérrez</div>
+          <div class="instr-role">Coach · Piloto Profesional</div>
+          <div class="instr-bio">Especialista técnico en conduccion profesional, analista de rendimiento y guía para formar tu carrera profesional.</div>
         </div>
       </div>
+      <div class="instr-card">
+        <div class="instr-photo"><img src="./assets/EquipoMecanico.png" alt="Instructor Pista" class="instr-photo-img"></div>
+        <div class="instr-info">  
+          <div class="instr-name">Instructor Pista</div>
+          <div class="instr-role">Preparador Mecánico</div>
+          <div class="instr-bio">Equipo especialista técnico en preparación de karts y análisis de rendimiento en pista. Acompañamiento personalizado durante los 2 días.</div>
+        </div>
+      </div>
+      
     </div>
   </div>
 </section>

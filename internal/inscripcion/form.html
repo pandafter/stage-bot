@@ -453,125 +453,227 @@
 
 </div>
 
-<script>
-const comprobanteSection = document.getElementById('comprobanteSection');
+   <script>
+   // === localStorage utilities ===
+   const STORAGE_KEY = 'scuderia_form_data';
+   const SUBMISSION_KEY = 'scuderia_submission';
 
-function refreshComprobante(){
-  const sel = document.querySelector('input[name=metodo_pago]:checked');
-  const isManual = sel && sel.value === 'transferencia';
-  comprobanteSection.style.display = isManual ? 'block' : 'none';
-}
+   function getSavedData(){
+     try{
+       const raw = localStorage.getItem(STORAGE_KEY);
+       return raw ? JSON.parse(raw) : {};
+     }catch(e){ return {}; }
+   }
 
-document.querySelectorAll('.pay-opt input[type=radio]').forEach(radio => {
-  radio.addEventListener('change', () => {
-    document.querySelectorAll('.pay-opt').forEach(o => o.classList.remove('selected'));
-    radio.closest('.pay-opt').classList.add('selected');
-    document.getElementById('payError').style.display = 'none';
-    refreshComprobante();
-  });
-});
+   function saveFormData(){
+     const form = document.getElementById('enrollForm');
+     const data = {
+       modalidad: form.modalidad.value,
+       metodo_pago: form.metodo_pago.value,
+       fecha_curso: form.fecha_curso.value,
+       email: form.email.value,
+       nombre_piloto: form.nombre_piloto.value,
+       edad: form.edad.value,
+       telefono: form.telefono.value,
+       tipo_documento: form.tipo_documento.value,
+       numero_documento: form.numero_documento.value,
+       ciudad: form.ciudad.value,
+       eps: form.eps.value,
+       grupo_sanguineo: form.grupo_sanguineo.value,
+       instagram_user: form.instagram_user.value,
+       familiar_nombre: form.familiar_nombre.value,
+       familiar_telefono: form.familiar_telefono.value,
+     };
+     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }catch(e){}
+   }
 
-document.querySelectorAll('input[name=modalidad]').forEach(radio => {
-  radio.addEventListener('change', () => {
-    document.querySelectorAll('#modalidadOpts .date-opt').forEach(o => o.classList.remove('selected'));
-    radio.closest('.date-opt').classList.add('selected');
-    document.getElementById('modalidadError').style.display = 'none';
-  });
-});
-// pre-mark default modalidad
-const defaultMod = document.querySelector('input[name=modalidad]:checked');
-if(defaultMod) defaultMod.closest('.date-opt').classList.add('selected');
+   function restoreFormData(){
+     const data = getSavedData();
+     if(!data) return;
+     const form = document.getElementById('enrollForm');
+     if(data.modalidad) form.modalidad.value = data.modalidad;
+     if(data.metodo_pago) form.metodo_pago.value = data.metodo_pago;
+     if(data.fecha_curso) form.fecha_curso.value = data.fecha_curso;
+     const fields = ['email','nombre_piloto','edad','telefono','tipo_documento','numero_documento','ciudad','eps','grupo_sanguineo','instagram_user','familiar_nombre','familiar_telefono'];
+     fields.forEach(id => { if(data[id]) form[id].value = data[id]; });
+   }
 
-document.querySelectorAll('input[name=fecha_curso]').forEach(radio => {
-  radio.addEventListener('change', () => {
-    document.querySelectorAll('#dateOpts .date-opt').forEach(o => o.classList.remove('selected'));
-    radio.closest('.date-opt').classList.add('selected');
-    document.getElementById('dateError').style.display = 'none';
-  });
-});
+   function getSubmissionRecord(){
+     try{
+       const raw = localStorage.getItem(SUBMISSION_KEY);
+       return raw ? JSON.parse(raw) : null;
+     }catch(e){ return null; }
+   }
 
-const fileInput = document.getElementById('paymentFile');
-const fileUpload = document.getElementById('fileUpload');
-const fileIcon = document.getElementById('fileIcon');
-const fileText = document.getElementById('fileText');
-const fileNameEl = document.getElementById('fileName');
+   function saveSubmissionRecord(paid = false){
+     const form = document.getElementById('enrollForm');
+     const record = {
+       email: form.email.value.trim(),
+       docNum: form.numero_documento.value.trim(),
+       metodo_pago: form.metodo_pago.value,
+       paid: paid,
+       timestamp: Date.now()
+     };
+     try{ localStorage.setItem(SUBMISSION_KEY, JSON.stringify(record)); }catch(e){}
+   }
 
-fileInput.addEventListener('change', () => {
-  const f = fileInput.files[0];
-  if(f){
-    fileUpload.classList.add('has-file');
-    fileIcon.textContent = '✅';
-    fileNameEl.textContent = f.name;
-    fileNameEl.style.display = 'block';
-    fileText.style.display = 'none';
-    document.getElementById('fileError').style.display = 'none';
-  }
-});
+   function isDuplicateSubmission(){
+     const record = getSubmissionRecord();
+     if(!record) return false;
+     const form = document.getElementById('enrollForm');
+     const currentEmail = form.email.value.trim();
+     const currentDoc = form.numero_documento.value.trim();
+     const currentPay = form.metodo_pago.value;
+     if(!currentEmail || !currentDoc) return false;
+     if(currentEmail !== record.email || currentDoc !== record.docNum) return false;
+     if(record.paid) return true;
+     if(record.metodo_pago === 'transferencia' && currentPay !== 'transferencia') return false;
+     if(record.metodo_pago !== 'transferencia' && currentPay === 'transferencia') return false;
+     return true;
+   }
 
-const termsCheck = document.getElementById('termsCheck');
-termsCheck.addEventListener('change', () => {
-  document.getElementById('termsError').style.display = 'none';
-});
+   // === UI Helpers ===
+   function updateRadioVisuals(){
+     document.querySelectorAll('input[name=modalidad]').forEach(r => {
+       r.closest('.date-opt').classList.toggle('selected', r.checked);
+     });
+     document.querySelectorAll('input[name=metodo_pago]').forEach(r => {
+       r.closest('.pay-opt').classList.toggle('selected', r.checked);
+     });
+     document.querySelectorAll('input[name=fecha_curso]').forEach(r => {
+       r.closest('.date-opt').classList.toggle('selected', r.checked);
+     });
+   }
 
-function validateField(id, errorId, msg){
-  const el = document.getElementById(id);
-  const val = el.value.trim();
-  if(!val){
-    el.classList.add('error');
-    document.getElementById(errorId).textContent = msg;
-    return false;
-  }
-  el.classList.remove('error');
-  document.getElementById(errorId).textContent = '';
-  return true;
-}
+   const comprobanteSection = document.getElementById('comprobanteSection');
 
-document.getElementById('enrollForm').addEventListener('submit', e => {
-  let valid = true;
+   function refreshComprobante(){
+     const sel = document.querySelector('input[name=metodo_pago]:checked');
+     const isManual = sel && sel.value === 'transferencia';
+     comprobanteSection.style.display = isManual ? 'block' : 'none';
+   }
 
-  const modVal = document.querySelector('input[name=modalidad]:checked');
-  if(!modVal){ document.getElementById('modalidadError').style.display = 'block'; valid = false; }
+   // === Event Listeners for radios ===
+   document.querySelectorAll('input[name=modalidad]').forEach(radio => {
+     radio.addEventListener('change', () => {
+       document.querySelectorAll('#modalidadOpts .date-opt').forEach(o => o.classList.remove('selected'));
+       radio.closest('.date-opt').classList.add('selected');
+       document.getElementById('modalidadError').style.display = 'none';
+       saveFormData();
+     });
+   });
 
-  const payVal = document.querySelector('input[name=metodo_pago]:checked');
-  if(!payVal){ document.getElementById('payError').style.display = 'block'; valid = false; }
+   document.querySelectorAll('input[name=metodo_pago]').forEach(radio => {
+     radio.addEventListener('change', () => {
+       document.querySelectorAll('.pay-opt').forEach(o => o.classList.remove('selected'));
+       radio.closest('.pay-opt').classList.add('selected');
+       document.getElementById('payError').style.display = 'none';
+       refreshComprobante();
+       saveFormData();
+     });
+   });
 
-  const dateVal = document.querySelector('input[name=fecha_curso]:checked');
-  if(!dateVal){ document.getElementById('dateError').style.display = 'block'; valid = false; }
+   document.querySelectorAll('input[name=fecha_curso]').forEach(radio => {
+     radio.addEventListener('change', () => {
+       document.querySelectorAll('#dateOpts .date-opt').forEach(o => o.classList.remove('selected'));
+       radio.closest('.date-opt').classList.add('selected');
+       document.getElementById('dateError').style.display = 'none';
+       saveFormData();
+     });
+   });
 
-  const requiresFile = payVal && payVal.value === 'transferencia';
-  if(requiresFile && !fileInput.files[0]){ document.getElementById('fileError').style.display = 'block'; valid = false; }
+   const fileInput = document.getElementById('paymentFile');
+   const fileUpload = document.getElementById('fileUpload');
+   const fileIcon = document.getElementById('fileIcon');
+   const fileText = document.getElementById('fileText');
+   const fileNameEl = document.getElementById('fileName');
 
-  if(!validateField('email','emailError','Ingresa un correo válido')) valid = false;
-  if(!validateField('fullName','nameError','Ingresa tu nombre completo')) valid = false;
-  if(!validateField('age','ageError','Ingresa tu edad')) valid = false;
-  if(!validateField('phone','phoneError','Ingresa tu teléfono')) valid = false;
-  if(!validateField('docType','docTypeError','Selecciona el tipo de documento')) valid = false;
-  if(!validateField('docNum','docNumError','Ingresa tu número de documento')) valid = false;
-  if(!validateField('city','cityError','Ingresa tu ciudad')) valid = false;
-  if(!validateField('eps','epsError','Ingresa tu EPS')) valid = false;
-  if(!validateField('bloodType','bloodError','Selecciona tu grupo sanguíneo')) valid = false;
-  if(!validateField('instagram','igError','Ingresa tu usuario de Instagram')) valid = false;
-  if(!validateField('emergName','emergNameError','Ingresa el nombre del familiar')) valid = false;
-  if(!validateField('emergPhone','emergPhoneError','Ingresa el teléfono del familiar')) valid = false;
+   fileInput.addEventListener('change', () => {
+     const f = fileInput.files[0];
+     if(f){
+       fileUpload.classList.add('has-file');
+       fileIcon.textContent = '✅';
+       fileNameEl.textContent = f.name;
+       fileNameEl.style.display = 'block';
+       fileText.style.display = 'none';
+       document.getElementById('fileError').style.display = 'none';
+     }
+   });
 
-  if(!termsCheck.checked){ document.getElementById('termsError').style.display = 'block'; valid = false; }
+   const termsCheck = document.getElementById('termsCheck');
+   termsCheck.addEventListener('change', () => {
+     document.getElementById('termsError').style.display = 'none';
+   });
 
-  if(!valid){
-    e.preventDefault();
-    const firstError = document.querySelector('.field-error[style*="block"]');
-    if(firstError) firstError.scrollIntoView({behavior:'smooth', block:'center'});
-    return;
-  }
+   function validateField(id, errorId, msg){
+     const el = document.getElementById(id);
+     const val = el.value.trim();
+     if(!val){
+       el.classList.add('error');
+       document.getElementById(errorId).textContent = msg;
+       return false;
+     }
+     el.classList.remove('error');
+     document.getElementById(errorId).textContent = '';
+     return true;
+   }
 
-  const btn = document.getElementById('submitBtn');
-  btn.textContent = '⏳ Enviando...';
-  btn.disabled = true;
-});
+   // autosave on any input/change
+   form.addEventListener('input', saveFormData);
+   form.addEventListener('change', saveFormData);
 
-['email','fullName','age','phone','docType','docNum','city','eps','bloodType','instagram','emergName','emergPhone'].forEach(id => {
-  const el = document.getElementById(id);
-  if(el) el.addEventListener('input', () => el.classList.remove('error'));
-});
-</script>
+   form.addEventListener('submit', e => {
+     if(isDuplicateSubmission()){
+       e.preventDefault();
+       alert('Ya has registrado una reserva con estos datos. Para modificarla, contáctanos por WhatsApp.');
+       return;
+     }
+
+     let valid = true;
+     const modVal = document.querySelector('input[name=modalidad]:checked');
+     if(!modVal){ document.getElementById('modalidadError').style.display = 'block'; valid = false; }
+     const payVal = document.querySelector('input[name=metodo_pago]:checked');
+     if(!payVal){ document.getElementById('payError').style.display = 'block'; valid = false; }
+     const dateVal = document.querySelector('input[name=fecha_curso]:checked');
+     if(!dateVal){ document.getElementById('dateError').style.display = 'block'; valid = false; }
+     const requiresFile = payVal && payVal.value === 'transferencia';
+     if(requiresFile && !fileInput.files[0]){ document.getElementById('fileError').style.display = 'block'; valid = false; }
+     if(!validateField('email','emailError','Ingresa un correo válido')) valid = false;
+     if(!validateField('fullName','nameError','Ingresa tu nombre completo')) valid = false;
+     if(!validateField('age','ageError','Ingresa tu edad')) valid = false;
+     if(!validateField('phone','phoneError','Ingresa tu teléfono')) valid = false;
+     if(!validateField('docType','docTypeError','Selecciona el tipo de documento')) valid = false;
+     if(!validateField('docNum','docNumError','Ingresa tu número de documento')) valid = false;
+     if(!validateField('city','cityError','Ingresa tu ciudad')) valid = false;
+     if(!validateField('eps','epsError','Ingresa tu EPS')) valid = false;
+     if(!validateField('bloodType','bloodError','Selecciona tu grupo sanguíneo')) valid = false;
+     if(!validateField('instagram','igError','Ingresa tu usuario de Instagram')) valid = false;
+     if(!validateField('emergName','emergNameError','Ingresa el nombre del familiar')) valid = false;
+     if(!validateField('emergPhone','emergPhoneError','Ingresa el teléfono del familiar')) valid = false;
+     if(!termsCheck.checked){ document.getElementById('termsError').style.display = 'block'; valid = false; }
+
+     if(!valid){
+       e.preventDefault();
+       const firstError = document.querySelector('.field-error[style*="block"]');
+       if(firstError) firstError.scrollIntoView({behavior:'smooth', block:'center'});
+       return;
+     }
+
+     const isPaid = payVal && payVal.value !== 'transferencia';
+     saveSubmissionRecord(isPaid);
+     const btn = document.getElementById('submitBtn');
+     btn.textContent = '⏳ Enviando...';
+     btn.disabled = true;
+   });
+
+   ['email','fullName','age','phone','docType','docNum','city','eps','bloodType','instagram','emergName','emergPhone'].forEach(id => {
+     const el = document.getElementById(id);
+     if(el) el.addEventListener('input', () => el.classList.remove('error'));
+   });
+
+   // === Init ===
+   restoreFormData();
+   updateRadioVisuals();
+   </script>
 </body>
 </html>

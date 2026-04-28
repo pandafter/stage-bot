@@ -45,6 +45,27 @@ var bancolombiaLogoPNG []byte
 //go:embed assets/nequiLogo.webp
 var nequiLogoWEBP []byte
 
+//go:embed assets/AndresMelo.png
+var andresMeloPNG []byte
+
+//go:embed assets/imagen1.png
+var instructorPistaPNG []byte
+
+//go:embed assets/MapaKartodromo.png
+var mapaKartodromoPNG []byte
+
+//go:embed assets/video1.mp4
+var video1MP4 []byte
+
+//go:embed assets/video2.mp4
+var video2MP4 []byte
+
+//go:embed assets/video3.mp4
+var video3MP4 []byte
+
+//go:embed assets/video4.mp4
+var video4MP4 []byte
+
 // Plan describes a registration plan.
 type Plan struct {
 	ID         string // form value
@@ -178,6 +199,55 @@ func (h *Handler) ServeNequiLogo(c *fiber.Ctx) error {
 	c.Set("Content-Type", "image/webp")
 	c.Set("Cache-Control", "public, max-age=86400")
 	return c.Send(nequiLogoWEBP)
+}
+
+// ServeVideo1 serves video1.mp4.
+func (h *Handler) ServeVideo1(c *fiber.Ctx) error {
+	c.Set("Content-Type", "video/mp4")
+	c.Set("Cache-Control", "public, max-age=86400")
+	return c.Send(video1MP4)
+}
+
+// ServeVideo2 serves video2.mp4.
+func (h *Handler) ServeVideo2(c *fiber.Ctx) error {
+	c.Set("Content-Type", "video/mp4")
+	c.Set("Cache-Control", "public, max-age=86400")
+	return c.Send(video2MP4)
+}
+
+// ServeVideo3 serves video3.mp4.
+func (h *Handler) ServeVideo3(c *fiber.Ctx) error {
+	c.Set("Content-Type", "video/mp4")
+	c.Set("Cache-Control", "public, max-age=86400")
+	return c.Send(video3MP4)
+}
+
+// ServeVideo4 serves video4.mp4.
+func (h *Handler) ServeVideo4(c *fiber.Ctx) error {
+	c.Set("Content-Type", "video/mp4")
+	c.Set("Cache-Control", "public, max-age=86400")
+	return c.Send(video4MP4)
+}
+
+// ServeAndresMelo serves AndresMelo.png.
+func (h *Handler) ServeAndresMelo(c *fiber.Ctx) error {
+	c.Set("Content-Type", "image/png")
+	c.Set("Cache-Control", "public, max-age=86400")
+	return c.Send(andresMeloPNG)
+}
+
+// ServeInstructorPista serves instructor de pista image.
+func (h *Handler) ServeInstructorPista(c *fiber.Ctx) error {
+	c.Set("Content-Type", "image/png")
+	c.Set("Cache-Control", "public, max-age=86400")
+	return c.Send(instructorPistaPNG)
+}
+
+// ServeMapaKartodromo serves mapa del kartodromo.
+func (h *Handler) ServeMapaKartodromo(c *fiber.Ctx) error {
+	c.Set("Content-Type", "image/png")
+	c.Set("Cache-Control", "public, max-age=86400")
+	return c.Send(mapaKartodromoPNG)
 }
 
 // TelegramDebug returns the bot identity (getMe) and the latest chats it has
