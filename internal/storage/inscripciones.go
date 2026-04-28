@@ -62,3 +62,25 @@ func (r *InscripcionesRepo) UpdateStatus(ctx context.Context, id, status string)
 		`UPDATE inscripciones SET status = $1 WHERE id = $2`, status, id)
 	return err
 }
+
+func (r *InscripcionesRepo) GetByID(ctx context.Context, id string) (*InscripcionRecord, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, email, metodo_pago, fecha_curso, plan, monto_cop,
+			nombre_piloto, edad, tipo_documento, numero_documento, telefono,
+			ciudad, eps, grupo_sanguineo, familiar_nombre, familiar_telefono,
+			instagram_user, comprobante_path, status, created_at
+		FROM inscripciones WHERE id = $1`, id)
+	rec := &InscripcionRecord{}
+	if err := row.Scan(
+		&rec.ID, &rec.Email, &rec.MetodoPago, &rec.FechaCurso, &rec.Plan, &rec.MontoCOP,
+		&rec.NombrePiloto, &rec.Edad, &rec.TipoDocumento, &rec.NumeroDocumento, &rec.Telefono,
+		&rec.Ciudad, &rec.EPS, &rec.GrupoSanguineo, &rec.FamiliarNombre, &rec.FamiliarTelefono,
+		&rec.InstagramUser, &rec.ComprobantePath, &rec.Status, &rec.CreatedAt,
+	); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get inscripcion %s: %w", id, err)
+	}
+	return rec, nil
+}

@@ -2,7 +2,10 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="theme-color" content="#090909">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Scudería St4ge — Academia de Pilotos Profesionales</title>
   <meta name="description" content="El curso de piloto profesional más efectivo e integral de Colombia. 2 días de experiencia real en pista con coaching de pilotos Pro.">
   <link rel="icon" type="image/jpeg" href="/inscripcion/logo.jpg">
@@ -168,6 +171,12 @@
     .map-ph small { font-size: 13px; color: var(--text-dimmer); }
     .map-marker { font-size: 40px; }
 
+    .ig-banner { display: none; position: fixed; top: 72px; left: 0; right: 0; z-index: 99; background: rgba(245,193,0,0.12); border-bottom: 1px solid rgba(245,193,0,0.35); padding: 10px 16px; text-align: center; font-size: 12px; line-height: 1.4; color: var(--gold); }
+    .ig-banner strong { color: #fff; }
+    .ig-banner .ig-close { background: none; border: none; color: var(--gold); font-size: 18px; cursor: pointer; margin-left: 8px; vertical-align: middle; }
+    .ig-banner.show { display: block; }
+    body.ig-pad { padding-top: 44px; }
+
     .bot-bubble { position: fixed; bottom: 28px; right: 28px; z-index: 300; }
     .bot-toggle { width: 62px; height: 62px; background: var(--gold); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; clip-path: polygon(10px 0%, 100% 0%, calc(100% - 10px) 100%, 0% 100%); transition: transform .2s; font-size: 26px; }
     .bot-toggle:hover { transform: scale(1.07); }
@@ -205,6 +214,9 @@
        .nav-links { display: none; }
        section { padding: 64px 24px; }
        .hero { padding: 100px 24px 64px; }
+       .hero-bg { background: #090909; }
+       .hero-grid { display: none; }
+       .hero-number { display: none; }
        .stats-band { padding: 36px 24px; }
        .stats-inner { flex-wrap: wrap; gap: 28px; justify-content: center; }
        .stat-item { border-right: none; min-width: 120px; }
@@ -215,11 +227,16 @@
        .footer-inner { grid-template-columns: 1fr 1fr; }
        footer { padding: 48px 24px; }
        .footer-bottom { flex-direction: column; gap: 8px; }
-       .bot-win { width: 300px; }
+       .bot-win { width: calc(100vw - 56px); max-width: 320px; right: 0; }
      }
   </style>
 </head>
 <body>
+
+<div class="ig-banner" id="igBanner">
+  <span>📱 Para mejor experiencia, abre este link en tu <strong>navegador externo</strong> (toca los <strong>⋯</strong> arriba y elige "Abrir en navegador").</span>
+  <button class="ig-close" id="igBannerClose" aria-label="Cerrar">×</button>
+</div>
 
 <nav>
   <a href="/" class="nav-logo"><img src="/inscripcion/logo.jpg" alt="Scudería St4ge"></a>
@@ -241,7 +258,7 @@
   <div class="hero-content">
     <div class="hero-eyebrow">Colombia · Karting Profesional</div>
     <h1 class="hero-title">Conviértete<br>en <em>Piloto</em><br>Profesional</h1>
-    <p class="hero-sub">El curso más efectivo e integral de Colombia. 2 días de experiencia real en pista con coaching de pilotos Pro.</p>
+    <p class="hero-sub">El curso más efectivo e integral de Colombia. 2 días de experiencia con coaching de pilotos Pro.</p>
     <div class="countdown-row">
       <span class="countdown-label-outer">Próximo curso en</span>
       <div id="countdown" style="display:flex;align-items:center;gap:0;">
@@ -264,9 +281,9 @@
 
 <div class="stats-band">
   <div class="stats-inner">
-    <div class="stat-item"><span class="stat-num" data-target="200">0</span><span class="stat-lbl">Pilotos formados</span></div>
-    <div class="stat-item"><span class="stat-num" data-target="6">0</span><span class="stat-lbl">Años de experiencia</span></div>
-    <div class="stat-item"><span class="stat-num" data-target="98">0</span><span class="stat-lbl">% Satisfacción</span></div>
+    <div class="stat-item"><span class="stat-num" data-target="1500">0</span><span class="stat-lbl">Pilotos formados</span></div>
+    <div class="stat-item"><span class="stat-num" data-target="8">0</span><span class="stat-lbl">Años de experiencia</span></div>
+    <div class="stat-item"><span class="stat-num" data-target="100">0</span><span class="stat-lbl">% Satisfacción</span></div>
   </div>
 </div>
 
@@ -277,7 +294,7 @@
     <p class="sec-sub">Todo lo que necesitas para vivir la experiencia completa. Sin costos ocultos.</p>
     <div class="includes-wrap">
       <div class="includes-grid">
-        <div class="inc-item"><span class="inc-icon">🏎</span><div class="inc-text">2 Días de experiencia en pista</div></div>
+        <div class="inc-item"><span class="inc-icon">🏎</span><div class="inc-text">2 Días de experiencia</div></div>
         <div class="inc-item"><span class="inc-icon">🏆</span><div class="inc-text">Diploma Certificado oficial</div></div>
         <div class="inc-item"><span class="inc-icon">🥤</span><div class="inc-text">Refrigerio incluido</div></div>
         <div class="inc-item"><span class="inc-icon">🪖</span><div class="inc-text">Indumentaria de seguridad completa</div></div>
@@ -657,6 +674,27 @@ document.querySelectorAll('.faq-q').forEach(q=>{
 window.addEventListener('scroll',()=>{
   document.querySelector('nav').style.background = window.scrollY > 40 ? 'rgba(9,9,9,0.97)' : 'rgba(9,9,9,0.9)';
 });
+
+(function(){
+  var ua = navigator.userAgent || '';
+  var isIG = /Instagram|FBAN|FBAV|FB_IAB|FBIOS/i.test(ua);
+  if (!isIG) return;
+  var dismissed = false;
+  try { dismissed = sessionStorage.getItem('ig-banner-dismissed') === '1'; } catch(e){}
+  if (dismissed) return;
+  var banner = document.getElementById('igBanner');
+  if (!banner) return;
+  banner.classList.add('show');
+  document.body.classList.add('ig-pad');
+  var btn = document.getElementById('igBannerClose');
+  if (btn) {
+    btn.addEventListener('click', function(){
+      banner.classList.remove('show');
+      document.body.classList.remove('ig-pad');
+      try { sessionStorage.setItem('ig-banner-dismissed','1'); } catch(e){}
+    });
+  }
+})();
 </script>
 </body>
 </html>

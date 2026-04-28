@@ -14,6 +14,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
+
+	"github.com/kart-academy/instagram-bot/internal/storage"
 )
 
 // BoldEvent is the Cloud-Events-shaped payload Bold POSTs to our webhook.
@@ -100,7 +102,13 @@ func (h *Handler) BoldWebhook(c *fiber.Ctx) error {
 		// still 200 — we don't want Bold retrying just because our DB hiccupped
 	}
 
-	go h.notifyBold(ev, data, newStatus)
+	// Fetch the record so the Telegram confirmation can include the pilot name,
+	// email, course date, etc. — non-fatal if it fails.
+	lookupCtx, lookupCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	rec, _ := h.repo.GetByID(lookupCtx, ref)
+	lookupCancel()
+
+	go h.notifyBold(ev, data, newStatus, rec)
 	go h.pushStatusUpdate(context.Background(), SheetStatusUpdate{
 		ID:            ref,
 		Status:        newStatus,
@@ -141,7 +149,7 @@ func verifyBoldSignature(body []byte, signature, secret string) bool {
 	return hmac.Equal([]byte(strings.ToLower(expected)), []byte(strings.ToLower(strings.TrimSpace(signature))))
 }
 
-func (h *Handler) notifyBold(ev BoldEvent, data boldData, newStatus string) {
+func (h *Handler) notifyBold(ev BoldEvent, data boldData, newStatus string, rec *storage.InscripcionRecord) {
 	if h.cfg.TelegramBotToken == "" || h.cfg.TelegramChatID == "" {
 		return
 	}
@@ -171,13 +179,24 @@ func (h *Handler) notifyBold(ev BoldEvent, data boldData, newStatus string) {
 	var b strings.Builder
 	fmt.Fprintln(&b, header)
 	b.WriteString("\n")
+	if rec != nil {
+		fmt.Fprintf(&b, "👤 *Piloto:* %s\n", tgEscape(rec.NombrePiloto))
+		fmt.Fprintf(&b, "✉️ *Email:* %s\n", tgEscape(rec.Email))
+		if rec.Telefono != "" {
+			fmt.Fprintf(&b, "📱 *Tel:* %s\n", tgEscape(rec.Telefono))
+		}
+		if rec.FechaCurso != "" {
+			fmt.Fprintf(&b, "📅 *Fecha curso:* %s\n", tgEscape(rec.FechaCurso))
+		}
+		b.WriteString("\n")
+	}
 	fmt.Fprintf(&b, "🧾 *Comprobante Bold*\n")
 	fmt.Fprintf(&b, "*Inscripción:* `%s`\n", tgEscape(data.Metadata.Reference))
 	fmt.Fprintf(&b, "*ID transacción Bold:* `%s`\n", tgEscape(ev.Subject))
 	if data.PaymentID != "" {
 		fmt.Fprintf(&b, "*Payment ID:* `%s`\n", tgEscape(data.PaymentID))
 	}
-	fmt.Fprintf(&b, "*Monto:* $%s COP\n", tgEscape(formatCOP(int(data.Amount.Total))))
+	fmt.Fprintf(&b, "*Monto pagado:* $%s COP\n", tgEscape(formatCOP(int(data.Amount.Total))))
 	fmt.Fprintf(&b, "*Método:* %s\n", tgEscape(method))
 	fmt.Fprintf(&b, "*Fecha y hora:* %s\n", tgEscape(tsLabel))
 	fmt.Fprintf(&b, "*Estado actualizado:* %s\n", tgEscape(newStatus))

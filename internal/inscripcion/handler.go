@@ -614,13 +614,46 @@ func renderSuccess(rec *storage.InscripcionRecord, modalidad *Modalidad, method 
 		nextStep = "Recibimos tu comprobante. Lo validaremos y te contactaremos por WhatsApp para confirmar."
 	}
 
-	bigBoldButton := ""
+	mainCard := ""
 	if checkoutURL != "" {
-		bigBoldButton = fmt.Sprintf(`<a href="%s" target="_blank" class="bold-btn">💳 Continuar al pago — $%s COP →</a>`,
-			htmlEscape(checkoutURL), formatCOP(rec.MontoCOP))
+		mainCard = fmt.Sprintf(`<div class="payment-final"><div class="pay-final-card featured">
+<div class="pay-final-title">💳 Pago seguro con Bold — %s</div>
+<div class="pay-final-detail">Tu pago se procesa de forma segura y tu cupo se confirma automáticamente al recibir la confirmación.</div>
+<a href="%s" class="bold-btn" id="boldCheckoutBtn">💳 Continuar al pago — $%s COP →</a>
+</div></div>`, htmlEscape(method.Label), htmlEscape(checkoutURL), formatCOP(rec.MontoCOP))
+	} else if method.ID == "transferencia" {
+		mainCard = `<div class="payment-final"><div class="pay-final-card">
+<div class="pay-final-title">📎 Comprobante recibido</div>
+<div class="pay-final-detail">Validaremos tu comprobante y te contactaremos por WhatsApp para confirmar tu cupo.</div>
+</div></div>`
+	}
+
+	extraScript := ""
+	if checkoutURL != "" {
+		// Same-window navigation: works inside Instagram in-app browser, and lets
+		// Bold redirect the user back to /inscripcion/callback in the same tab.
+		extraScript = fmt.Sprintf(`<script>
+(function(){
+  var url = %q;
+  var btn = document.getElementById('boldCheckoutBtn');
+  if (btn) {
+    btn.addEventListener('click', function(e){
+      e.preventDefault();
+      window.location.href = url;
+    });
+  }
+  setTimeout(function(){ window.location.href = url; }, 1500);
+})();
+</script>`, checkoutURL)
 	}
 
 	r := strings.NewReplacer(
+		"{{PAGE_TITLE}}", "Cupo Reservado",
+		"{{NAV_STEP}}", "Confirmación",
+		"{{ICON}}", "🏁",
+		"{{TITLE}}", "¡Cupo<br>Reservado!",
+		"{{TITLE_CLASS}}", "",
+		"{{BADGE_CLASS}}", "pending",
 		"{{ID}}", htmlEscape(rec.ID),
 		"{{NOMBRE}}", htmlEscape(rec.NombrePiloto),
 		"{{PLAN}}", htmlEscape(modalidad.Label),
@@ -630,14 +663,164 @@ func renderSuccess(rec *storage.InscripcionRecord, modalidad *Modalidad, method 
 		"{{EMAIL}}", htmlEscape(rec.Email),
 		"{{NEXT_STEP}}", htmlEscape(nextStep),
 		"{{METHOD}}", htmlEscape(method.Label),
-		"{{CHECKOUT_BUTTON}}", bigBoldButton,
+		"{{MAIN_CARD}}", mainCard,
+		"{{EXTRA_SCRIPT}}", extraScript,
 	)
-	out := r.Replace(successHTML)
+	return r.Replace(successHTML)
+}
 
-	// Auto-open the Bold checkout once the page loads, only when we have a URL.
-	if checkoutURL != "" {
-		autoOpen := fmt.Sprintf(`<script>setTimeout(function(){window.open(%q,'_blank');},800);</script></body>`, checkoutURL)
-		out = strings.Replace(out, "</body>", autoOpen, 1)
+// renderCallback renders the post-payment confirmation page that Bold redirects
+// the user to. It reflects DB state (which the Bold webhook updates server-to-
+// server) and polls the status endpoint while still pending.
+func renderCallback(rec *storage.InscripcionRecord, txStatus string) string {
+	confirmed := strings.EqualFold(rec.Status, "pagado") ||
+		strings.EqualFold(txStatus, "approved") ||
+		strings.EqualFold(txStatus, "APPROVED")
+	rejected := strings.EqualFold(rec.Status, "pago rechazado") ||
+		strings.EqualFold(txStatus, "rejected") ||
+		strings.EqualFold(txStatus, "REJECTED")
+
+	planLabel := rec.Plan
+	if m := findModalidad(rec.Plan); m != nil {
+		planLabel = m.Label
 	}
-	return out
+
+	var icon, title, titleClass, badge, badgeClass, nextStep, mainCard, extra string
+
+	switch {
+	case confirmed:
+		icon = "✅"
+		title = "¡Pago<br>Confirmado!"
+		titleClass = "confirmed"
+		badge = "Pago confirmado"
+		badgeClass = ""
+		nextStep = "Tu pago fue procesado exitosamente. Tu cupo está reservado y te contactaremos por WhatsApp con los detalles del curso."
+		mainCard = `<div class="payment-final"><div class="pay-final-card confirmed">
+<div class="pay-final-title">🏁 Cupo asegurado</div>
+<div class="pay-final-detail">Recibimos la confirmación oficial de Bold. Te enviamos un correo con el resumen y nuestro equipo te contactará por WhatsApp para los próximos pasos del curso.<br><br><strong>Conserva este ID:</strong> <span style="font-family:monospace;color:var(--gold);">` + htmlEscape(rec.ID) + `</span></div>
+</div></div>`
+	case rejected:
+		icon = "⚠️"
+		title = "Pago<br>Rechazado"
+		titleClass = ""
+		badge = "Pago no procesado"
+		badgeClass = "pending"
+		nextStep = "Tu pago no fue aprobado por el banco. No te preocupes — puedes intentarlo nuevamente o usar otro método."
+		mainCard = `<div class="payment-final"><div class="pay-final-card">
+<div class="pay-final-title">↻ Intenta nuevamente</div>
+<div class="pay-final-detail">Vuelve al formulario y elige otro método de pago, o escríbenos por WhatsApp para ayudarte.</div>
+<a href="/inscripcion" class="bold-btn">↻ Volver al formulario</a>
+</div></div>`
+	default:
+		// Still pending — show verifying state, poll for confirmation.
+		icon = "⏳"
+		title = "Verificando<br>Pago"
+		titleClass = ""
+		badge = "Procesando"
+		badgeClass = "pending"
+		nextStep = "Estamos confirmando tu pago con Bold. Esto suele tardar solo unos segundos."
+		mainCard = `<div class="payment-final"><div class="pay-final-card featured">
+<div class="pay-final-title">🔄 Confirmando con Bold</div>
+<div class="pay-final-detail"><div class="verifying"><div class="spinner"></div><span>Confirmación en curso…</span></div>Esta página se actualizará automáticamente al recibir la confirmación. No cierres esta ventana.</div>
+</div></div>`
+		extra = fmt.Sprintf(`<script>
+(function(){
+  var ref = %q;
+  var attempts = 0;
+  function poll(){
+    attempts++;
+    fetch('/inscripcion/status?ref=' + encodeURIComponent(ref), {cache:'no-store'})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if (j && (j.status === 'pagado' || j.status === 'pago rechazado')) {
+          window.location.reload();
+          return;
+        }
+        if (attempts < 30) setTimeout(poll, 2000);
+      })
+      .catch(function(){
+        if (attempts < 30) setTimeout(poll, 3000);
+      });
+  }
+  setTimeout(poll, 1500);
+})();
+</script>`, rec.ID)
+	}
+
+	r := strings.NewReplacer(
+		"{{PAGE_TITLE}}", "Confirmación de pago",
+		"{{NAV_STEP}}", "Pago",
+		"{{ICON}}", icon,
+		"{{TITLE}}", title,
+		"{{TITLE_CLASS}}", titleClass,
+		"{{BADGE_CLASS}}", badgeClass,
+		"{{ID}}", htmlEscape(rec.ID),
+		"{{NOMBRE}}", htmlEscape(rec.NombrePiloto),
+		"{{PLAN}}", htmlEscape(planLabel),
+		"{{MONTO}}", formatCOP(rec.MontoCOP),
+		"{{FECHA}}", htmlEscape(rec.FechaCurso),
+		"{{STATUS}}", htmlEscape(badge),
+		"{{EMAIL}}", htmlEscape(rec.Email),
+		"{{NEXT_STEP}}", htmlEscape(nextStep),
+		"{{METHOD}}", htmlEscape(rec.MetodoPago),
+		"{{MAIN_CARD}}", mainCard,
+		"{{EXTRA_SCRIPT}}", extra,
+	)
+	return r.Replace(successHTML)
+}
+
+// Callback is the GET endpoint Bold redirects the user to after the checkout
+// flow finishes. It looks up the inscripcion by `ref` and renders a tailored
+// confirmation page (confirmed / pending / rejected). The actual DB status is
+// driven by the Bold webhook (POST /webhook/bold).
+func (h *Handler) Callback(c *fiber.Ctx) error {
+	ref := strings.TrimSpace(c.Query("ref"))
+	if ref == "" {
+		// Fall back to Bold's own order id parameter if `ref` was stripped.
+		ref = strings.TrimSpace(c.Query("bold-order-id"))
+	}
+	txStatus := strings.TrimSpace(c.Query("bold-tx-status"))
+
+	c.Set("Content-Type", "text/html; charset=utf-8")
+	c.Set("Cache-Control", "no-store, no-cache, must-revalidate")
+
+	if ref == "" {
+		return errPage(c, fiber.StatusBadRequest, "Referencia faltante",
+			"No pudimos identificar tu inscripción. Si ya pagaste, no te preocupes: el pago se confirma automáticamente y te contactaremos. Conserva el correo de confirmación.")
+	}
+
+	ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
+	defer cancel()
+
+	rec, err := h.repo.GetByID(ctx, ref)
+	if err != nil {
+		h.logger.Error("callback: get inscripcion", zap.Error(err), zap.String("ref", ref))
+		return errPage(c, fiber.StatusInternalServerError, "Error consultando inscripción", err.Error())
+	}
+	if rec == nil {
+		return errPage(c, fiber.StatusNotFound, "Inscripción no encontrada",
+			"No encontramos esa inscripción. Si crees que es un error, escríbenos por WhatsApp con tu nombre y email.")
+	}
+
+	return c.SendString(renderCallback(rec, txStatus))
+}
+
+// Status is a small JSON endpoint the callback page polls while waiting for
+// Bold's webhook to flip the DB status from "pendiente" to "pagado".
+func (h *Handler) Status(c *fiber.Ctx) error {
+	ref := strings.TrimSpace(c.Query("ref"))
+	if ref == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"ok": false, "error": "ref required"})
+	}
+	ctx, cancel := context.WithTimeout(c.UserContext(), 3*time.Second)
+	defer cancel()
+	rec, err := h.repo.GetByID(ctx, ref)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"ok": false, "error": err.Error()})
+	}
+	if rec == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"ok": false, "error": "not found"})
+	}
+	c.Set("Cache-Control", "no-store")
+	return c.JSON(fiber.Map{"ok": true, "id": rec.ID, "status": rec.Status})
 }
