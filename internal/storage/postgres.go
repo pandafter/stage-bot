@@ -2,127 +2,58 @@ package storage
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
 
 type DB struct {
-	conn   *sql.DB
+	Pool   *pgxpool.Pool
 	logger *zap.Logger
 }
 
-func NewDB(dsn string, logger *zap.Logger) (*DB, error) {
+func New(ctx context.Context, dsn string, logger *zap.Logger) (*DB, error) {
 	if dsn == "" {
 		return nil, fmt.Errorf("empty DATABASE_URL")
 	}
 
-	conn, err := sql.Open("pgx", dsn)
+	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
-		return nil, fmt.Errorf("open database: %w", err)
+		return nil, fmt.Errorf("parse dsn: %w", err)
+	}
+	cfg.MaxConns = 20
+	cfg.MinConns = 2
+	cfg.MaxConnLifetime = 30 * time.Minute
+
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("connect pgx pool: %w", err)
 	}
 
-	conn.SetMaxOpenConns(10)
-	conn.SetMaxIdleConns(2)
-	conn.SetConnMaxLifetime(30 * time.Minute)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	pingCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	if err := conn.PingContext(ctx); err != nil {
+	if err := pool.Ping(pingCtx); err != nil {
+		pool.Close()
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
 
-	db := &DB{conn: conn, logger: logger}
-
-	if err := db.migrate(); err != nil {
-		return nil, fmt.Errorf("run migrations: %w", err)
+	db := &DB{Pool: pool, logger: logger}
+	if err := db.migrate(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("migrations: %w", err)
 	}
-
 	logger.Info("postgres initialized")
 	return db, nil
 }
 
-func (db *DB) Close() error {
-	return db.conn.Close()
+func (db *DB) Close() {
+	db.Pool.Close()
 }
 
-func (db *DB) Conn() *sql.DB {
-	return db.conn
-}
-
-func (db *DB) migrate() error {
+func (db *DB) migrate(ctx context.Context) error {
 	migrations := []string{
-		`CREATE TABLE IF NOT EXISTS leads (
-			id             TEXT PRIMARY KEY,
-			username       TEXT DEFAULT '',
-			first_seen     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			last_seen      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			total_messages INTEGER NOT NULL DEFAULT 0,
-			lead_score     INTEGER NOT NULL DEFAULT 0,
-			state          TEXT NOT NULL DEFAULT 'new',
-			outcome        TEXT NOT NULL DEFAULT 'open',
-			price_asked    BOOLEAN NOT NULL DEFAULT FALSE,
-			schedule_asked BOOLEAN NOT NULL DEFAULT FALSE,
-			buy_signal     BOOLEAN NOT NULL DEFAULT FALSE,
-			objections     INTEGER NOT NULL DEFAULT 0,
-			notes          TEXT NOT NULL DEFAULT ''
-		)`,
-
-		`CREATE TABLE IF NOT EXISTS conversation_messages (
-			id           BIGSERIAL PRIMARY KEY,
-			lead_id      TEXT NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
-			role         TEXT NOT NULL,
-			content      TEXT NOT NULL,
-			content_type TEXT NOT NULL DEFAULT 'text',
-			intent       TEXT NOT NULL DEFAULT '',
-			strategy     TEXT NOT NULL DEFAULT '',
-			score_delta  INTEGER NOT NULL DEFAULT 0,
-			score_after  INTEGER NOT NULL DEFAULT 0,
-			created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
-		)`,
-
-		`CREATE TABLE IF NOT EXISTS sales_events (
-			id         BIGSERIAL PRIMARY KEY,
-			lead_id    TEXT NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
-			event_type TEXT NOT NULL,
-			data       JSONB NOT NULL DEFAULT '{}'::jsonb,
-			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-		)`,
-
-		`CREATE INDEX IF NOT EXISTS idx_conv_lead_time ON conversation_messages(lead_id, created_at)`,
-		`CREATE INDEX IF NOT EXISTS idx_leads_outcome ON leads(outcome)`,
-		`CREATE INDEX IF NOT EXISTS idx_leads_state ON leads(state)`,
-		`CREATE INDEX IF NOT EXISTS idx_sales_lead ON sales_events(lead_id, created_at)`,
-
-		`CREATE TABLE IF NOT EXISTS message_jobs (
-			id            BIGSERIAL PRIMARY KEY,
-			sender_id     TEXT NOT NULL,
-			payload       JSONB NOT NULL,
-			status        TEXT NOT NULL DEFAULT 'pending',
-			attempts      INTEGER NOT NULL DEFAULT 0,
-			next_retry_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			error_text    TEXT NOT NULL DEFAULT '',
-			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			started_at    TIMESTAMPTZ,
-			finished_at   TIMESTAMPTZ
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_jobs_pending ON message_jobs(next_retry_at) WHERE status = 'pending'`,
-		`CREATE INDEX IF NOT EXISTS idx_jobs_sender_status ON message_jobs(sender_id, status)`,
-		`CREATE INDEX IF NOT EXISTS idx_jobs_status_created ON message_jobs(status, created_at)`,
-
-		`ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS tokens_in INTEGER NOT NULL DEFAULT 0`,
-		`ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS tokens_out INTEGER NOT NULL DEFAULT 0`,
-		`ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS model TEXT NOT NULL DEFAULT ''`,
-
-		// Follow-up tracking
-		`ALTER TABLE leads ADD COLUMN IF NOT EXISTS followup_count INTEGER NOT NULL DEFAULT 0`,
-		`ALTER TABLE leads ADD COLUMN IF NOT EXISTS last_followup TIMESTAMPTZ`,
-		`CREATE INDEX IF NOT EXISTS idx_leads_followup ON leads(last_seen, state) WHERE outcome = 'open'`,
-
-		// Inscripciones (registrations from the public form)
 		`CREATE TABLE IF NOT EXISTS inscripciones (
 			id               TEXT PRIMARY KEY,
 			email            TEXT NOT NULL,
@@ -148,13 +79,11 @@ func (db *DB) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_inscripciones_status ON inscripciones(status, created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_inscripciones_email ON inscripciones(email)`,
 	}
-
 	for _, m := range migrations {
-		if _, err := db.conn.Exec(m); err != nil {
-			return fmt.Errorf("migration failed: %w\nSQL: %s", err, m)
+		if _, err := db.Pool.Exec(ctx, m); err != nil {
+			return fmt.Errorf("migration: %w\nSQL: %s", err, m)
 		}
 	}
-
 	db.logger.Info("postgres migrations complete")
 	return nil
 }

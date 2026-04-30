@@ -6,8 +6,9 @@ server
 # Environment
 .env
 
-# Data
+# Data / uploads
 data/
+uploads/
 *.db
 
 # Git
@@ -17,8 +18,9 @@ data/
 # IDE
 .vscode/
 .idea/
+.claude/
 
-# Docs
+# Docs (keep go.mod)
 *.md
 !go.mod
 
@@ -27,5 +29,11 @@ data/
 Thumbs.db
 
 # Docker
-Dockerfile
 docker-compose*.yml
+
+# Frontend dev artifacts (npm build runs in Docker)
+frontend/node_modules/
+frontend/dist/
+
+# Embedded dist (rebuilt in Docker)
+internal/spa/dist/

@@ -10,123 +10,58 @@ import (
 )
 
 type Config struct {
-	// Server
-	Port int
-	Env  string
-
-	// Meta / Instagram
-	AppID              string
-	AppSecret          string
-	PageAccessToken    string
-	InstagramAccountID string
-	WebhookVerifyToken string
-
-	// Anthropic
-	AnthropicAPIKey string
-
-	// ElevenLabs
-	ElevenLabsAPIKey  string
-	ElevenLabsVoiceID string
-
-	// OpenAI (Whisper)
-	OpenAIAPIKey string
-
-	// Google Sheets knowledge base
-	GoogleSheetID string
-
-	// Server public URL (ngrok)
+	Port      int
+	Env       string
 	PublicURL string
 
-	// Database
 	DatabaseURL string
 
-	// Testing — only respond to this sender in development
-	TestSenderID string
-	// Trigger keyword for comment-to-DM sales flow
-	CommentTriggerKeyword string
-
-	// Admin panel auth token
-	AdminToken string
-
-	// MCP / GitHub integration
-	GitHubToken  string
-	GitHubRepo   string
-	MCPSecret    string
-	BotPrompt    string
-	SystemPrompt string
-
-	// Queue worker pool
-	WorkerConcurrency int
-	WorkerMaxAttempts int
-
-	// Claude pricing per million tokens (USD). Defaults to Sonnet rates.
-	ClaudePriceInputPerMTok  float64
-	ClaudePriceOutputPerMTok float64
-
-	// Inscripcion (public registration form)
-	UploadsDir        string
-	TelegramBotToken  string
-	TelegramChatID    string
+	// Bold (pasarela de pago)
+	BoldAPIKey        string
 	BoldWebhookSecret string
-	BoldAPIKey        string // identity key for Bold's POST link creation API
-	SheetsWebhookURL  string // Apps Script web app URL receiving inscripciones
-	SheetsSharedToken string // shared secret echoed back to verify the call
 
-	// Kill-switch: cuando es false el webhook acepta pero no procesa mensajes.
-	BotEnabled bool
+	// Telegram (notificaciones al director)
+	TelegramBotToken string
+	TelegramChatID   string
+
+	// Storage
+	UploadsDir string
+
+	// Admin (endpoints diagnósticos opcionales)
+	AdminToken string
 }
 
 func Load() (*Config, error) {
 	_ = godotenv.Load()
 
 	cfg := &Config{
-		Port:                     getIntEnv("PORT", 8080),
-		Env:                      getEnv("ENV", "development"),
-		AppID:                    getEnv("APP_ID", ""),
-		AppSecret:                getEnv("APP_SECRET", ""),
-		PageAccessToken:          getEnv("PAGE_ACCESS_TOKEN", ""),
-		InstagramAccountID:       getEnv("INSTAGRAM_ACCOUNT_ID", ""),
-		WebhookVerifyToken:       getEnv("WEBHOOK_VERIFY_TOKEN", ""),
-		AnthropicAPIKey:          getEnv("ANTHROPIC_API_KEY", ""),
-		ElevenLabsAPIKey:         getEnv("ELEVENLABS_API_KEY", ""),
-		ElevenLabsVoiceID:        getEnv("ELEVENLABS_VOICE_ID", ""),
-		OpenAIAPIKey:             getEnv("OPENAI_API_KEY", ""),
-		GoogleSheetID:            getEnv("GOOGLE_SHEET_ID", ""),
-		PublicURL:                getEnv("PUBLIC_URL", ""),
-		DatabaseURL:              getEnv("DATABASE_URL", ""),
-		TestSenderID:             getEnv("TEST_SENDER_ID", ""),
-		CommentTriggerKeyword:    getEnv("COMMENT_TRIGGER_KEYWORD", "piloto"),
-		AdminToken:               getEnv("ADMIN_TOKEN", ""),
-		GitHubToken:              getEnv("GITHUB_TOKEN", ""),
-		GitHubRepo:               getEnv("GITHUB_REPO", ""),
-		MCPSecret:                getEnv("MCP_SECRET", ""),
-		BotPrompt:                getEnv("BOT_PROMPT", ""),
-		SystemPrompt:             getEnv("SYSTEM_PROMPT", ""),
-		WorkerConcurrency:        getIntEnv("WORKER_CONCURRENCY", 5),
-		WorkerMaxAttempts:        getIntEnv("WORKER_MAX_ATTEMPTS", 3),
-		ClaudePriceInputPerMTok:  getFloatEnv("CLAUDE_PRICE_INPUT_PER_MTOK", 3.0),
-		ClaudePriceOutputPerMTok: getFloatEnv("CLAUDE_PRICE_OUTPUT_PER_MTOK", 15.0),
-		UploadsDir:               getEnv("UPLOADS_DIR", "./uploads"),
-		TelegramBotToken:         getEnv("TELEGRAM_BOT_TOKEN", ""),
-		TelegramChatID:           getEnv("TELEGRAM_CHAT_ID", ""),
-		BoldWebhookSecret:        getEnv("BOLD_WEBHOOK_SECRET", ""),
-		BoldAPIKey:               getEnv("BOLD_API_KEY", ""),
-		SheetsWebhookURL:         getEnv("SHEETS_WEBHOOK_URL", ""),
-		SheetsSharedToken:        getEnv("SHEETS_SHARED_TOKEN", ""),
-		BotEnabled:               getBoolEnv("BOT_ENABLED", false),
+		Port:              getIntEnv("PORT", 3000),
+		Env:               getEnv("ENV", "development"),
+		PublicURL:         normalizePublicURL(getEnv("PUBLIC_URL", "")),
+		DatabaseURL:       getEnv("DATABASE_URL", ""),
+		BoldAPIKey:        getEnv("BOLD_API_KEY", ""),
+		BoldWebhookSecret: getEnv("BOLD_WEBHOOK_SECRET", ""),
+		TelegramBotToken:  getEnv("TELEGRAM_BOT_TOKEN", ""),
+		TelegramChatID:    getEnv("TELEGRAM_CHAT_ID", ""),
+		UploadsDir:        getEnv("UPLOADS_DIR", "./uploads"),
+		AdminToken:        getEnv("ADMIN_TOKEN", ""),
 	}
-
-	cfg.PublicURL = normalizePublicURL(cfg.PublicURL)
 
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-
 	return cfg, nil
 }
 
-// normalizePublicURL ensures the URL has an https scheme and no trailing slash.
-// Instagram requires a fully-qualified URL with scheme to fetch audio attachments.
+func (c *Config) IsDevelopment() bool { return c.Env == "development" }
+
+func (c *Config) validate() error {
+	if c.DatabaseURL == "" {
+		return fmt.Errorf("missing required env var: DATABASE_URL")
+	}
+	return nil
+}
+
 func normalizePublicURL(u string) string {
 	u = strings.TrimSpace(u)
 	if u == "" {
@@ -139,67 +74,21 @@ func normalizePublicURL(u string) string {
 	return u
 }
 
-func (c *Config) IsDevelopment() bool {
-	return c.Env == "development"
-}
-
-func (c *Config) validate() error {
-	required := map[string]string{
-		"WEBHOOK_VERIFY_TOKEN": c.WebhookVerifyToken,
-		"DATABASE_URL":         c.DatabaseURL,
-	}
-
-	for name, val := range required {
-		if val == "" {
-			return fmt.Errorf("missing required env var: %s", name)
-		}
-	}
-
-	return nil
-}
-
 func getEnv(key, fallback string) string {
-	if val := os.Getenv(key); val != "" {
-		return val
+	if v := os.Getenv(key); v != "" {
+		return v
 	}
 	return fallback
 }
 
 func getIntEnv(key string, fallback int) int {
-	val := os.Getenv(key)
-	if val == "" {
+	v := os.Getenv(key)
+	if v == "" {
 		return fallback
 	}
-	n, err := strconv.Atoi(val)
+	n, err := strconv.Atoi(v)
 	if err != nil {
 		return fallback
 	}
 	return n
-}
-
-func getBoolEnv(key string, fallback bool) bool {
-	val := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
-	if val == "" {
-		return fallback
-	}
-	switch val {
-	case "1", "true", "yes", "on":
-		return true
-	case "0", "false", "no", "off":
-		return false
-	default:
-		return fallback
-	}
-}
-
-func getFloatEnv(key string, fallback float64) float64 {
-	val := os.Getenv(key)
-	if val == "" {
-		return fallback
-	}
-	f, err := strconv.ParseFloat(val, 64)
-	if err != nil {
-		return fallback
-	}
-	return f
 }

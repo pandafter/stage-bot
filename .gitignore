@@ -1,7 +1,12 @@
 # Binaries
 *.exe
 /bot
-dist/
+/server
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+internal/spa/dist/
 
 # Environment & secrets
 .env
@@ -11,10 +16,11 @@ data/
 *.db
 *.sqlite
 
-# Temp
+# Temp & uploads
 tmp/
 vendor/
 voice_cache/
+uploads/
 
 # Claude Code
 CLAUDE.md
