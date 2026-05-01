@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import { useInscripcionStore } from '@/stores/inscripcion'
 import { fetchConfig, createInscripcion, uploadComprobante } from '@/services/inscripciones'
 import type { ConfigResponse, MetodoPagoId, ModalidadId } from '@/types/api'
-import IgBanner from '@/components/ui/IgBanner.vue'
 import DiscountBanner from '@/components/ui/DiscountBanner.vue'
 import { useDiscountTimer } from '@/composables/useDiscountTimer'
 import { useFormPersistence } from '@/composables/useFormPersistence'
@@ -213,7 +212,6 @@ const payIcons: Record<string, string> = {
 </script>
 
 <template>
-  <IgBanner />
   <header class="form-nav">
     <div class="form-nav-row container">
       <router-link to="/" class="nav-back">← Volver</router-link>
