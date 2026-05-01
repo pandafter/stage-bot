@@ -8,6 +8,8 @@ const {
 
 function fmt(n: number): string { return n.toString().padStart(2, '0') }
 function formatCOP(n: number): string { return n.toLocaleString('es-CO') }
+
+
 </script>
 
 <template>
