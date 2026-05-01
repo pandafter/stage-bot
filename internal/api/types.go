@@ -20,6 +20,8 @@ type ConfigResponse struct {
 	Fechas           []string        `json:"fechas"`
 	CardSurchargePct int             `json:"card_surcharge_pct"`
 	ReservaCOP       int             `json:"reserva_cop"`
+	PrecioCompleto   int             `json:"precio_completo"`
+	PrecioDescuento  int             `json:"precio_descuento"`
 }
 
 // CreateInscripcionRequest is the JSON body posted to POST /api/inscripciones.
@@ -67,6 +69,8 @@ const (
 	CardSurchargePct = 5
 	ReservaCOP       = 150000
 	DefaultPlanID    = "preventa"
+	PrecioCompleto   = 890000 // Full price (no discount)
+	PrecioDescuento  = 730000 // Preventa discount price
 )
 
 var Modalidades = []Modalidad{

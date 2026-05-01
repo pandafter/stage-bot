@@ -4,8 +4,10 @@ import { useRouter } from 'vue-router'
 import { useInscripcionStore } from '@/stores/inscripcion'
 import { fetchConfig, createInscripcion, uploadComprobante } from '@/services/inscripciones'
 import type { ConfigResponse, MetodoPagoId, ModalidadId } from '@/types/api'
-import AppNav from '@/components/ui/AppNav.vue'
 import IgBanner from '@/components/ui/IgBanner.vue'
+import DiscountBanner from '@/components/ui/DiscountBanner.vue'
+import { useDiscountTimer } from '@/composables/useDiscountTimer'
+import { useFormPersistence } from '@/composables/useFormPersistence'
 
 const router = useRouter()
 const store = useInscripcionStore()
@@ -15,7 +17,15 @@ const comprobanteFile = ref<File | null>(null)
 const serverError = ref('')
 const termsAccepted = ref(false)
 
+// Discount timer — starts when user enters inscription flow
+const { startTimer, expired: discountExpired, priceDiscount, priceFull } = useDiscountTimer()
+
+// Form persistence — saves personal data to localStorage, restores on mount
+const { clear: clearSavedForm } = useFormPersistence()
+
 onMounted(async () => {
+  // Start the 10-minute discount countdown
+  startTimer()
   try {
     config.value = await fetchConfig()
   } catch (e) {
@@ -27,13 +37,20 @@ const step = computed(() => store.step)
 const form = computed(() => store.form)
 const errors = computed(() => store.errors)
 
+/** Modalidades list from config — price stays at preventa always.
+ *  The timer is a UX urgency tool, not an actual price gate. */
+const effectiveModalidades = computed(() => config.value?.modalidades ?? [])
+
 const selectedModalidad = computed(() =>
-  config.value?.modalidades.find(m => m.id === form.value.modalidad)
+  effectiveModalidades.value.find(m => m.id === form.value.modalidad)
 )
 
 const selectedMetodo = computed(() =>
   config.value?.metodos.find(m => m.id === form.value.metodo_pago)
 )
+
+/** Whether to show the discount visual (crossed out full price + badge) */
+const showDiscount = computed(() => !discountExpired.value)
 
 const finalMonto = computed(() => {
   if (!selectedModalidad.value) return 0
@@ -125,6 +142,9 @@ async function submit() {
 
     store.result = result
 
+    // Clear saved form data on successful submission
+    clearSavedForm()
+
     // Upload comprobante if transfer
     if (result.requires_comprobante && comprobanteFile.value) {
       try {
@@ -208,6 +228,9 @@ const payIcons: Record<string, string> = {
       <h1 class="form-title">Reserva<br>tu Cupo</h1>
       <p class="form-sub">Completa el formulario, realiza tu pago de reserva y asegura tu lugar en pista.</p>
 
+      <!-- Discount countdown banner -->
+      <DiscountBanner />
+
       <!-- Progress -->
       <div class="progress">
         <div
@@ -224,13 +247,17 @@ const payIcons: Record<string, string> = {
           <div class="section-title"><span class="num">1</span>¿Cómo quieres pagar?</div>
           <div class="options-grid">
             <label
-              v-for="m in config.modalidades" :key="m.id"
+              v-for="m in effectiveModalidades" :key="m.id"
               class="option-card" :class="{ selected: form.modalidad === m.id }"
             >
               <input type="radio" :value="m.id" @change="store.update('modalidad', m.id)" :checked="form.modalidad === m.id" />
+              <div v-if="m.id === 'completo' && showDiscount" class="option-discount">
+                <span class="old-price">${{ formatCOP(priceFull) }}</span>
+              </div>
               <div class="option-value">${{ formatCOP(m.price_cop) }}</div>
               <div class="option-label">{{ m.label }}</div>
               <div class="option-detail" v-if="m.id === 'reserva'">Asegura tu cupo · saldo el día del curso</div>
+              <div class="option-detail" v-else-if="showDiscount">🔥 Precio preventa · descuento activo</div>
               <div class="option-detail" v-else>Preventa · sin pendientes</div>
             </label>
           </div>
@@ -474,8 +501,14 @@ const payIcons: Record<string, string> = {
       <div class="divider" />
       <div class="info-price">
         <div class="price-label">{{ selectedModalidad?.label || 'Selecciona modalidad' }}</div>
+        <div v-if="form.modalidad === 'completo' && showDiscount" class="sidebar-old-price">
+          ${{ formatCOP(priceFull) }}
+        </div>
         <div class="price-value">${{ formatCOP(finalMonto) }}</div>
         <div class="price-note">COP · pago único</div>
+        <div v-if="form.modalidad === 'completo' && showDiscount" class="sidebar-discount-tag">
+          🔥 Descuento preventa activo
+        </div>
       </div>
       <div class="divider" />
       <div class="info-includes">
@@ -665,6 +698,14 @@ input.error, select.error { border-color: var(--red) !important; }
   font-size: 11px;
   color: var(--text-dimmer);
   margin-top: 4px;
+}
+.option-discount {
+  margin-bottom: 2px;
+}
+.old-price {
+  font-size: 14px;
+  text-decoration: line-through;
+  color: var(--text-dimmer);
 }
 
 /* Payment options */
@@ -876,6 +917,23 @@ input.error, select.error { border-color: var(--red) !important; }
   margin-top: 4px;
 }
 .price-note { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+.sidebar-old-price {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-dimmer);
+  text-decoration: line-through;
+  line-height: 1;
+}
+.sidebar-discount-tag {
+  font-size: 12px;
+  color: var(--gold);
+  margin-top: 8px;
+  padding: 4px 10px;
+  background: var(--gold-dim);
+  border: 1px solid rgba(245,193,0,0.25);
+  display: inline-block;
+}
 .info-includes { display: flex; flex-direction: column; gap: 8px; margin: 20px 0; }
 .inc-item { font-size: 13px; color: var(--text-dim); }
 .info-warning {
