@@ -64,9 +64,17 @@ func (s *Server) setupRoutes(deps Dependencies) {
 	s.app.Post("/api/inscripciones", deps.API.Create)
 	s.app.Get("/api/inscripciones/:id", deps.API.Get)
 	s.app.Post("/api/inscripciones/:id/comprobante", deps.API.UploadComprobante)
+	s.app.Get("/api/instagram", deps.API.GetInstagramPosts)
 
 	// Bold webhook (server-to-server, HMAC-signed)
 	s.app.Post("/webhook/bold", deps.API.BoldWebhook)
+
+	// Dev-only: simular pagos sin pasar por Bold (solo ENV=development)
+	if s.cfg.IsDevelopment() {
+		s.app.Post("/dev/inscripciones/:id/confirm", deps.API.DevConfirmPayment)
+		s.app.Post("/dev/inscripciones/:id/reject", deps.API.DevRejectPayment)
+		s.logger.Info("⚠️  dev endpoints activos — POST /dev/inscripciones/:id/confirm|reject")
+	}
 
 	// SPA fallback (must be last)
 	if err := spa.Register(s.app); err != nil {

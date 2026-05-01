@@ -29,6 +29,10 @@ type Config struct {
 
 	// Admin (endpoints diagnósticos opcionales)
 	AdminToken string
+
+	// Instagram Basic Display API — opcional, para la sección de posts en el landing.
+	// Si está vacío, el endpoint /api/instagram devuelve [] y el frontend muestra fallback.
+	InstagramAccessToken string
 }
 
 func Load() (*Config, error) {
@@ -43,8 +47,9 @@ func Load() (*Config, error) {
 		BoldWebhookSecret: getEnv("BOLD_WEBHOOK_SECRET", ""),
 		TelegramBotToken:  getEnv("TELEGRAM_BOT_TOKEN", ""),
 		TelegramChatID:    getEnv("TELEGRAM_CHAT_ID", ""),
-		UploadsDir:        getEnv("UPLOADS_DIR", "./uploads"),
-		AdminToken:        getEnv("ADMIN_TOKEN", ""),
+		UploadsDir:           getEnv("UPLOADS_DIR", "./uploads"),
+		AdminToken:           getEnv("ADMIN_TOKEN", ""),
+		InstagramAccessToken: getEnv("INSTAGRAM_ACCESS_TOKEN", ""),
 	}
 
 	if err := cfg.validate(); err != nil {
