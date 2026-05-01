@@ -9,6 +9,7 @@ import InstructoresSection from '@/components/landing/InstructoresSection.vue'
 import GallerySection from '@/components/landing/GallerySection.vue'
 import FaqSection from '@/components/landing/FaqSection.vue'
 import CtaSection from '@/components/landing/CtaSection.vue'
+import InstagramPostsSection from '@/components/landing/InstagramPostsSection.vue'
 </script>
 
 <template>
@@ -18,6 +19,7 @@ import CtaSection from '@/components/landing/CtaSection.vue'
     <HeroSection />
     <StatsSection />
     <ProgramSection />
+    <InstagramPostsSection/>
     <InstructoresSection />
     <GallerySection />
     <FaqSection />

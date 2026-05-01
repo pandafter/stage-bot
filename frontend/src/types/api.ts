@@ -24,6 +24,8 @@ export interface ConfigResponse {
   fechas: string[]
   card_surcharge_pct: number
   reserva_cop: number
+  precio_completo: number
+  precio_descuento: number
 }
 
 export interface CreateInscripcionRequest {

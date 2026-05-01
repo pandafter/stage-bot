@@ -1,9 +1,9 @@
 <script setup lang="ts">
 const stats = [
-  { value: '+200', label: 'Pilotos formados' },
-  { value: '12 hrs', label: 'En pista por estudiante' },
+  { value: '+1000', label: 'Pilotos formados' },
+  { value: '10 hrs', label: 'En pista por estudiante' },
   { value: '2:1', label: 'Ratio piloto/instructor' },
-  { value: '100%', label: 'Equipo de seguridad incluido' },
+  { value: '100%', label: 'Satisfacción del cliente' },
 ]
 </script>
 

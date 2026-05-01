@@ -10,5 +10,7 @@ func (h *Handler) GetConfig(c *fiber.Ctx) error {
 		Fechas:           Fechas,
 		CardSurchargePct: CardSurchargePct,
 		ReservaCOP:       ReservaCOP,
+		PrecioCompleto:   PrecioCompleto,
+		PrecioDescuento:  PrecioDescuento,
 	})
 }
