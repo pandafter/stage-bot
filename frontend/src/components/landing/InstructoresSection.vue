@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import VoiceNote from '@/components/ui/VoiceNote.vue'
+
 const team = [
   { img: '/assets/AndresMelo.png', name: 'Andrés Melo', role: 'Director técnico — Piloto activo', bio: 'Más de 15 años en pista. Coach principal de la academia.' },
   { img: '/assets/SantiGutierrez.png', name: 'Santi Gutiérrez', role: 'Instructor en pista', bio: 'Especialista en trazadas y frenado tardío.' },
@@ -17,6 +19,13 @@ const team = [
           <h3>{{ m.name }}</h3>
           <span class="role">{{ m.role }}</span>
           <p>{{ m.bio }}</p>
+          <!-- Nota de voz del director (solo en la tarjeta de Andrés) -->
+          <VoiceNote
+            v-if="m.name === 'Andrés Melo'"
+            src="/assets/director.mp3"
+            label="Mensaje del director"
+            class="card-voice"
+          />
         </article>
       </div>
     </div>
@@ -34,4 +43,5 @@ h2 { font-size: clamp(36px, 5vw, 56px); margin: 12px 0 36px; }
 .card p { color: var(--text-dim); line-height: 1.55; font-size: 15px; }
 @media (max-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+.card-voice { margin-top: 16px; }
 </style>
