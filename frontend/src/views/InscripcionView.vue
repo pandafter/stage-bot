@@ -17,7 +17,7 @@ const serverError = ref('')
 const termsAccepted = ref(false)
 
 // Discount timer — starts when user enters inscription flow
-const { startTimer, expired: discountExpired, priceDiscount, priceFull } = useDiscountTimer()
+const { startTimer, expired: discountExpired, effectivePrice, priceDiscount, priceFull } = useDiscountTimer()
 
 // Form persistence — saves personal data to localStorage, restores on mount
 const { clear: clearSavedForm } = useFormPersistence()
@@ -36,9 +36,15 @@ const step = computed(() => store.step)
 const form = computed(() => store.form)
 const errors = computed(() => store.errors)
 
-/** Modalidades list from config — price stays at preventa always.
- *  The timer is a UX urgency tool, not an actual price gate. */
-const effectiveModalidades = computed(() => config.value?.modalidades ?? [])
+/** Modalidades list from config — when discount expires, "completo" shows full price */
+const effectiveModalidades = computed(() => {
+  const mods = config.value?.modalidades ?? []
+  if (!discountExpired.value) return mods
+  // Swap the "completo" price to full when discount has expired
+  return mods.map(m =>
+    m.id === 'completo' ? { ...m, price_cop: priceFull } : m
+  )
+})
 
 const selectedModalidad = computed(() =>
   effectiveModalidades.value.find(m => m.id === form.value.modalidad)

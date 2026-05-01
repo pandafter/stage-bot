@@ -33,6 +33,14 @@ type Config struct {
 	// Instagram Basic Display API — opcional, para la sección de posts en el landing.
 	// Si está vacío, el endpoint /api/instagram devuelve [] y el frontend muestra fallback.
 	InstagramAccessToken string
+
+	// Instagram Bot (auto-responder de DMs)
+	PageAccessToken    string // Page access token with instagram_manage_messages permission
+	IGAccountID        string // Instagram-scoped account ID (the page's IG identity)
+	WebhookVerifyToken string // Token to verify Meta webhook subscription
+	AppSecret          string // Facebook App Secret for webhook signature verification
+	TestSenderID       string // In development, only respond to this sender ID
+	BotAudioURL        string // URL of the director's pre-recorded audio message
 }
 
 func Load() (*Config, error) {
@@ -50,6 +58,14 @@ func Load() (*Config, error) {
 		UploadsDir:           getEnv("UPLOADS_DIR", "./uploads"),
 		AdminToken:           getEnv("ADMIN_TOKEN", ""),
 		InstagramAccessToken: getEnv("INSTAGRAM_ACCESS_TOKEN", ""),
+
+		// Instagram Bot
+		PageAccessToken:    getEnv("PAGE_ACCESS_TOKEN", ""),
+		IGAccountID:        getEnv("INSTAGRAM_ACCOUNT_ID", ""),
+		WebhookVerifyToken: getEnv("WEBHOOK_VERIFY_TOKEN", ""),
+		AppSecret:          getEnv("APP_SECRET", ""),
+		TestSenderID:       getEnv("TEST_SENDER_ID", ""),
+		BotAudioURL:        getEnv("BOT_AUDIO_URL", ""),
 	}
 
 	if err := cfg.validate(); err != nil {

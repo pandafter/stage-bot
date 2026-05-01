@@ -2,23 +2,22 @@
 import { useDiscountTimer } from '@/composables/useDiscountTimer'
 
 const {
-  minutes, seconds, expired, urgency, progress,
-  priceFull, priceDiscount, discountPct,
+  minutes, seconds, expired, phase, urgency, progress,
+  priceFull, priceDiscount, discountPct, secondChanceFlash,
 } = useDiscountTimer()
 
 function fmt(n: number): string { return n.toString().padStart(2, '0') }
 function formatCOP(n: number): string { return n.toLocaleString('es-CO') }
-
-
 </script>
 
 <template>
-  <!-- Active discount -->
-  <div v-if="!expired" class="discount-bar" :class="urgency">
+  <!-- Fase 1 o 2: descuento activo -->
+  <div v-if="!expired" class="discount-bar" :class="[urgency, { 'second-chance': phase === 2 }]">
     <div class="discount-progress" :style="{ width: (progress * 100) + '%' }" />
     <div class="discount-content">
       <div class="discount-left">
-        <span class="discount-badge">-{{ discountPct }}%</span>
+        <span v-if="phase === 1" class="discount-badge">-{{ discountPct }}%</span>
+        <span v-else class="discount-badge flash">¡Última oportunidad!</span>
         <span class="discount-text">
           <span class="discount-old">${{ formatCOP(priceFull) }}</span>
           <span class="discount-arrow">→</span>
@@ -26,7 +25,9 @@ function formatCOP(n: number): string { return n.toLocaleString('es-CO') }
         </span>
       </div>
       <div class="discount-timer">
-        <span class="timer-label">Descuento termina en</span>
+        <span class="timer-label">
+          {{ phase === 1 ? 'Descuento termina en' : '¡Quedan solo!' }}
+        </span>
         <div class="timer-digits">
           <span class="digit">{{ fmt(minutes) }}</span>
           <span class="separator">:</span>
@@ -34,15 +35,22 @@ function formatCOP(n: number): string { return n.toLocaleString('es-CO') }
         </div>
       </div>
     </div>
+
+    <!-- Flash overlay de segunda oportunidad -->
+    <Transition name="flash-in">
+      <div v-if="secondChanceFlash" class="second-chance-overlay">
+        <span>🔥 ¡Te damos 10 minutos más!</span>
+      </div>
+    </Transition>
   </div>
 
-  <!-- Expired -->
+  <!-- Expirado: precio completo -->
   <div v-else class="discount-bar expired">
     <div class="discount-content">
       <div class="discount-left">
-        <span class="discount-badge off">Tiempo agotado</span>
+        <span class="discount-badge off">Descuento finalizado</span>
         <span class="discount-text">
-          El precio de preventa sigue vigente — <strong>¡completa tu inscripción!</strong>
+          El precio actual es <strong>${{ formatCOP(priceFull) }} COP</strong>
         </span>
       </div>
     </div>
@@ -121,7 +129,20 @@ function formatCOP(n: number): string { return n.toLocaleString('es-CO') }
 .calm .discount-badge { background: var(--gold); color: #000; }
 .warning .discount-badge { background: orange; color: #000; }
 .critical .discount-badge { background: var(--red); color: #fff; }
-.discount-badge.off { background: var(--surface2); color: var(--text-dim); clip-path: none; padding: 4px 10px; font-size: 12px; }
+.discount-badge.off {
+  background: var(--surface2);
+  color: var(--text-dim);
+  clip-path: none;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.discount-badge.flash {
+  animation: badge-flash .6s ease-in-out 3;
+}
+@keyframes badge-flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; transform: scale(1.05); }
+}
 
 .discount-text {
   font-size: 14px;
@@ -183,9 +204,27 @@ function formatCOP(n: number): string { return n.toLocaleString('es-CO') }
 }
 .critical .separator { animation: blink 1s step-end infinite; }
 
-@keyframes blink {
-  50% { opacity: 0.3; }
+/* Segunda oportunidad overlay (flash que aparece 3s) */
+.second-chance-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(230,50,0,0.95);
+  z-index: 5;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 18px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #fff;
 }
+.flash-in-enter-active { transition: opacity .3s; }
+.flash-in-leave-active { transition: opacity .8s ease-out; }
+.flash-in-enter-from, .flash-in-leave-to { opacity: 0; }
+
+@keyframes blink { 50% { opacity: 0.3; } }
 
 @media (max-width: 600px) {
   .discount-content { flex-direction: column; align-items: stretch; gap: 12px; }
