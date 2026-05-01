@@ -4,8 +4,8 @@ import { RouterLink } from 'vue-router'
 import { useDiscountTimer } from '@/composables/useDiscountTimer'
 
 const {
-  minutes, seconds, expired, urgency, progress,
-  priceFull, priceDiscount, discountPct, startTimer,
+  minutes, seconds, expired, phase, urgency, progress,
+  priceFull, priceDiscount, discountPct, secondChanceFlash, startTimer,
 } = useDiscountTimer()
 
 const visible = ref(false)
@@ -15,11 +15,7 @@ function fmt(n: number): string { return n.toString().padStart(2, '0') }
 function formatCOP(n: number): string { return n.toLocaleString('es-CO') }
 
 onMounted(() => {
-  // Arranca el contador desde el landing para que la urgencia suba antes
-  // de que el usuario entre al formulario
   startTimer()
-
-  // Slide-in con pequeño delay para no overwhelm en carga inicial
   setTimeout(() => { visible.value = true }, 1800)
 })
 
@@ -40,7 +36,8 @@ function dismiss() { dismissed.value = true }
 
         <!-- Badge + precio -->
         <div class="ldb-prices">
-          <span class="ldb-badge">-{{ discountPct }}%</span>
+          <span v-if="phase === 1" class="ldb-badge">-{{ discountPct }}%</span>
+          <span v-else class="ldb-badge flash">¡Última oportunidad!</span>
           <span class="ldb-old">${{ formatCOP(priceFull) }}</span>
           <span class="ldb-arrow">→</span>
           <span class="ldb-new">${{ formatCOP(priceDiscount) }}</span>
@@ -49,7 +46,9 @@ function dismiss() { dismissed.value = true }
 
         <!-- Timer -->
         <div class="ldb-timer">
-          <span class="ldb-timer-label">Termina en</span>
+          <span class="ldb-timer-label">
+            {{ phase === 1 ? 'Termina en' : '¡Quedan solo!' }}
+          </span>
           <div class="ldb-digits">
             <span class="ldb-digit">{{ fmt(minutes) }}</span>
             <span class="ldb-sep">:</span>
@@ -65,6 +64,13 @@ function dismiss() { dismissed.value = true }
         <!-- Dismiss -->
         <button class="ldb-close" @click="dismiss" aria-label="Cerrar">×</button>
       </div>
+
+      <!-- Flash overlay de segunda oportunidad -->
+      <Transition name="flash-in">
+        <div v-if="secondChanceFlash" class="ldb-flash-overlay">
+          <span>🔥 ¡Te damos 10 minutos más!</span>
+        </div>
+      </Transition>
     </div>
   </Transition>
 </template>
@@ -255,4 +261,33 @@ function dismiss() { dismissed.value = true }
 }
 
 @keyframes blink { 50% { opacity: 0.3; } }
+
+/* Badge flash for second chance */
+.ldb-badge.flash {
+  animation: badge-flash .6s ease-in-out 3;
+}
+@keyframes badge-flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; transform: scale(1.05); }
+}
+
+/* Second chance flash overlay */
+.ldb-flash-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(230,50,0,0.95);
+  z-index: 5;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 18px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #fff;
+}
+.flash-in-enter-active { transition: opacity .3s; }
+.flash-in-leave-active { transition: opacity .8s ease-out; }
+.flash-in-enter-from, .flash-in-leave-to { opacity: 0; }
 </style>

@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/kart-academy/instagram-bot/internal/api"
+	"github.com/kart-academy/instagram-bot/internal/bot"
 	"github.com/kart-academy/instagram-bot/internal/config"
 	"github.com/kart-academy/instagram-bot/internal/spa"
 )
@@ -26,6 +27,7 @@ type Server struct {
 
 type Dependencies struct {
 	API *api.Handler
+	Bot *bot.Handler // nil if bot is not configured
 }
 
 func New(cfg *config.Config, deps Dependencies, logger *zap.Logger) *Server {
@@ -68,6 +70,13 @@ func (s *Server) setupRoutes(deps Dependencies) {
 
 	// Bold webhook (server-to-server, HMAC-signed)
 	s.app.Post("/webhook/bold", deps.API.BoldWebhook)
+
+	// Instagram bot webhook (Meta Messaging API)
+	if deps.Bot != nil {
+		s.app.Get("/webhook/instagram", deps.Bot.Verify)
+		s.app.Post("/webhook/instagram", deps.Bot.Receive)
+		s.logger.Info("🤖 Instagram bot webhook activo — /webhook/instagram")
+	}
 
 	// Dev-only: simular pagos sin pasar por Bold (solo ENV=development)
 	if s.cfg.IsDevelopment() {

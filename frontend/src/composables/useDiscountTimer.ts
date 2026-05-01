@@ -1,141 +1,146 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 
-const STORAGE_KEY = 'st4ge_discount_expiry'
-const DISCOUNT_DURATION_MS = 10 * 60 * 1000 // 10 minutos
-
-// 💰 Puedes luego reemplazar esto con backend
+// ══════════════════════════════════════════════════════════════════
+//  Precios
+// ══════════════════════════════════════════════════════════════════
 const PRICE_FULL = 890_000
 const PRICE_DISCOUNT = 730_000
 
+// ══════════════════════════════════════════════════════════════════
+//  Duración de cada fase (10 minutos)
+// ══════════════════════════════════════════════════════════════════
+const PHASE_MS = 10 * 60 * 1000
+
+// ══════════════════════════════════════════════════════════════════
+//  Estado compartido a nivel de módulo.
+//  → Persiste entre navegaciones SPA (landing ↔ form ↔ callback).
+//  → Se RESETEA en hard refresh (F5 / cerrar pestaña) porque es RAM pura.
+// ══════════════════════════════════════════════════════════════════
+let _startTime: number | null = null
+
+/**
+ * Fases del descuento:
+ *   1 → Primer countdown (10 min) — precio descuento
+ *   2 → Segunda oportunidad (+10 min) — todavía precio descuento
+ *   3 → Expirado — precio cambia a completo
+ */
+type Phase = 1 | 2 | 3
+
 export function useDiscountTimer() {
   const secondsLeft = ref(0)
+  const phase = ref<Phase>(1)
   const expired = ref(false)
+  /** true durante los primeros 3 segundos de fase 2 (para animación flash) */
+  const secondChanceFlash = ref(false)
   let interval: ReturnType<typeof setInterval> | null = null
+  let flashTimeout: ReturnType<typeof setTimeout> | null = null
 
+  // ── Computed ──────────────────────────────────────────────────
   const minutes = computed(() => Math.floor(secondsLeft.value / 60))
   const seconds = computed(() => secondsLeft.value % 60)
 
   const priceFull = PRICE_FULL
   const priceDiscount = PRICE_DISCOUNT
 
+  /** Precio efectivo: descuento en fase 1-2, completo en fase 3 */
+  const effectivePrice = computed(() =>
+    expired.value ? PRICE_FULL : PRICE_DISCOUNT
+  )
+
   const discountPct = computed(() =>
     Math.round(((PRICE_FULL - PRICE_DISCOUNT) / PRICE_FULL) * 100)
   )
 
-  /** 🔥 Progress de 1 → 0 */
+  /** Barra de progreso relativa a la fase actual (1 → 0) */
   const progress = computed(() => {
-    const total = DISCOUNT_DURATION_MS / 1000
-    return Math.max(0, secondsLeft.value / total)
+    const phaseSecs = PHASE_MS / 1000
+    return Math.max(0, secondsLeft.value / phaseSecs)
   })
 
-  /** 🔥 Estados de urgencia */
+  /** Urgencia visual */
   const urgency = computed<'calm' | 'warning' | 'critical'>(() => {
-    if (secondsLeft.value > 300) return 'calm'      // >5 min
-    if (secondsLeft.value > 60) return 'warning'    // 1-5 min
-    return 'critical'                               // <1 min
+    if (phase.value === 2) {
+      // Fase 2 arranca más urgente
+      if (secondsLeft.value > 180) return 'warning'   // >3 min → naranja
+      return 'critical'                                 // ≤3 min → rojo
+    }
+    // Fase 1 normal
+    if (secondsLeft.value > 300) return 'calm'          // >5 min
+    if (secondsLeft.value > 60) return 'warning'        // 1-5 min
+    return 'critical'                                    // <1 min
   })
 
-  // =========================
-  // 🧠 STORAGE (expiry)
-  // =========================
-
-  function getExpiryTime(): number {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) {
-        const t = parseInt(raw, 10)
-        if (!isNaN(t) && t > 0) return t
-      }
-    } catch {}
-    return 0
-  }
-
-  function setExpiryTime(t: number) {
-    try {
-      localStorage.setItem(STORAGE_KEY, String(t))
-    } catch {}
-  }
-
-  function clearExpiry() {
-    try {
-      localStorage.removeItem(STORAGE_KEY)
-    } catch {}
-  }
-
-  // =========================
-  // ⏱️ CORE TIMER
-  // =========================
-
+  // ── Tick ──────────────────────────────────────────────────────
   function tick() {
-    const expiry = getExpiryTime()
-
-    if (!expiry) {
+    if (!_startTime) {
       expired.value = true
+      phase.value = 3
       secondsLeft.value = 0
       return
     }
 
-    const remaining = expiry - Date.now()
+    const elapsed = Date.now() - _startTime
 
-    if (remaining <= 0) {
+    if (elapsed < PHASE_MS) {
+      // ── Fase 1 ──
+      phase.value = 1
+      expired.value = false
+      secondsLeft.value = Math.ceil((PHASE_MS - elapsed) / 1000)
+
+    } else if (elapsed < PHASE_MS * 2) {
+      // ── Fase 2: segunda oportunidad ──
+      if (phase.value === 1) {
+        // Transición 1→2: flash visual
+        phase.value = 2
+        secondChanceFlash.value = true
+        flashTimeout = setTimeout(() => { secondChanceFlash.value = false }, 3000)
+      }
+      phase.value = 2
+      expired.value = false
+      secondsLeft.value = Math.ceil((PHASE_MS * 2 - elapsed) / 1000)
+
+    } else {
+      // ── Fase 3: expirado ──
+      phase.value = 3
       expired.value = true
       secondsLeft.value = 0
-
-      if (interval) {
-        clearInterval(interval)
-        interval = null
-      }
-    } else {
-      expired.value = false
-      secondsLeft.value = Math.ceil(remaining / 1000)
+      stopInterval()
     }
   }
 
-  // =========================
-  // 🚀 CONTROL
-  // =========================
+  function stopInterval() {
+    if (interval) { clearInterval(interval); interval = null }
+  }
 
-  /** Inicia o reanuda */
+  // ── Control ───────────────────────────────────────────────────
+
+  /** Inicia el countdown (idempotente: si ya está corriendo, no hace nada). */
   function startTimer() {
-    const existing = getExpiryTime()
-
-    if (!existing) {
-      const expiry = Date.now() + DISCOUNT_DURATION_MS
-      setExpiryTime(expiry)
-    }
-
+    if (!_startTime) _startTime = Date.now()
     tick()
-
     if (!interval && !expired.value) {
       interval = setInterval(tick, 1000)
     }
   }
 
-  /** Reset manual (testing o lógica de negocio) */
+  /** Reset total — vuelve a fase 1 con 10 min (solo para testing). */
   function resetTimer() {
-    clearExpiry()
-
-    const expiry = Date.now() + DISCOUNT_DURATION_MS
-    setExpiryTime(expiry)
-
+    _startTime = Date.now()
+    phase.value = 1
     expired.value = false
+    secondChanceFlash.value = false
     tick()
-
     if (!interval) {
       interval = setInterval(tick, 1000)
     }
   }
 
-  // =========================
-  // 🔄 LIFECYCLE
-  // =========================
+  // ── Lifecycle ─────────────────────────────────────────────────
 
   onMounted(() => {
-    const existing = getExpiryTime()
-
-    if (existing) {
+    // Si el timer ya está corriendo (navegación SPA), reanudar
+    if (_startTime) {
       tick()
-
       if (!expired.value && !interval) {
         interval = setInterval(tick, 1000)
       }
@@ -143,23 +148,21 @@ export function useDiscountTimer() {
   })
 
   onUnmounted(() => {
-    if (interval) {
-      clearInterval(interval)
-      interval = null
-    }
+    stopInterval()
+    if (flashTimeout) { clearTimeout(flashTimeout); flashTimeout = null }
   })
 
-  // =========================
-  // 🎯 RETURN
-  // =========================
-
+  // ── Return ────────────────────────────────────────────────────
   return {
     secondsLeft,
     minutes,
     seconds,
+    phase,
     expired,
+    secondChanceFlash,
     progress,
     urgency,
+    effectivePrice,
     priceFull,
     priceDiscount,
     discountPct,
