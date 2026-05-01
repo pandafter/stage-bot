@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import IgBanner from '@/components/ui/IgBanner.vue'
 import AppNav from '@/components/ui/AppNav.vue'
 import AppFooter from '@/components/ui/AppFooter.vue'
+import LandingDiscountBar from '@/components/ui/LandingDiscountBar.vue'
 import HeroSection from '@/components/landing/HeroSection.vue'
 import StatsSection from '@/components/landing/StatsSection.vue'
 import ProgramSection from '@/components/landing/ProgramSection.vue'
@@ -13,17 +13,19 @@ import InstagramPostsSection from '@/components/landing/InstagramPostsSection.vu
 </script>
 
 <template>
-  <IgBanner />
   <AppNav />
   <main>
     <HeroSection />
     <StatsSection />
     <ProgramSection />
-    <InstagramPostsSection/>
+    <InstagramPostsSection />
     <InstructoresSection />
     <GallerySection />
     <FaqSection />
     <CtaSection />
   </main>
   <AppFooter />
+
+  <!-- Barra de descuento fija en el bottom — aparece 1.8s después de cargar -->
+  <LandingDiscountBar />
 </template>
