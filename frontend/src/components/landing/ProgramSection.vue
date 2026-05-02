@@ -1,9 +1,9 @@
 <script setup lang="ts">
 const items = [
+  { t: 'Carrera Profesional', d: 'Charla con nuestros pilotos profesionales para que proyectes tu carrera como piloto profesional.' },
   { t: 'Teoría aplicada', d: 'Trazadas, frenado, peso, neumáticos. Lo que cambia tu vuelta.' },
-  { t: 'Mecánica básica', d: 'Cómo está hecho tu kart. Para sentirlo, no para romperlo.' },
-  { t: 'Sesiones en pista', d: 'Múltiples tandas con telemetría y feedback uno a uno.' },
-  { t: 'Carrera final', d: 'Clasificación + carrera con podio. Tu primer trofeo.' },
+  { t: 'Mecánica básica', d: 'Cómo está hecho tu kart. Para sentir la conducción al máximo.' },
+  { t: 'Sesiones en pista', d: 'Múltiples tandas con datos y feedback uno a uno.' },
   { t: 'Equipo completo', d: 'Casco, mono, cuello cervical y guantes incluidos.' },
   { t: 'Diploma de piloto', d: 'Certificación de la academia. Foto y video del fin de semana.' },
 ]
