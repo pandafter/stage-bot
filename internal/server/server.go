@@ -42,7 +42,7 @@ func New(cfg *config.Config, deps Dependencies, logger *zap.Logger) *Server {
 
 	app.Use(recover.New())
 
-	allowOrigins := "http://localhost:5173"
+	allowOrigins := "https://www.scuderiast4ge.com/"
 	if !cfg.IsDevelopment() {
 		allowOrigins = "*"
 	}
