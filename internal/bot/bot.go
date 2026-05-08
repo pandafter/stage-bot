@@ -78,7 +78,7 @@ func (h *Handler) Verify(c *fiber.Ctx) error {
 
 // WebhookPayload is the top-level structure Meta sends.
 type WebhookPayload struct {
-	Object string  `json:"object"`
+	Object string  `json:"object,Object"`
 	Entry  []Entry `json:"entry"`
 }
 
