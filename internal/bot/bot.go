@@ -193,9 +193,7 @@ func (h *Handler) handleMessage(msg Messaging) {
 	}
 
 	replyText := fmt.Sprintf(
-		"¡Hola! 👋 Gracias por escribirnos. "+
-			"Escucha el audio del director y cuando estés listo, "+
-			"reserva tu cupo aquí 👇\n\n%s",
+		"Te comparto el link para que puedas ver mas información del cuso y puedas inscribirte: %s",
 		registrationURL,
 	)
 
@@ -203,13 +201,6 @@ func (h *Handler) handleMessage(msg Messaging) {
 		h.logger.Error("bot: failed to send text", zap.Error(err))
 		return
 	}
-
-	// Mark as replied
-	h.respondedTo[senderID] = time.Now()
-
-	h.logger.Info("bot: auto-reply sent successfully",
-		zap.String("sender", senderID),
-	)
 }
 
 // verifySignature checks the X-Hub-Signature-256 header against the body.
