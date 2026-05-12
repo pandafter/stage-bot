@@ -61,6 +61,17 @@ export interface CtaData {
   bg_url?: string
 }
 
+export interface MediaItem {
+  id: number
+  filename: string
+  url: string
+  alt_text: string
+  size_bytes: number
+  mime_type: string
+  tags: string[]
+  created_at: string
+}
+
 export interface Theme {
   primary_color: string
   secondary_color: string
