@@ -15,11 +15,12 @@ import (
 
 type InscripcionesAdminHandler struct {
 	repo   *storage.InscripcionesRepo
+	audit  *storage.AuditRepo
 	logger *zap.Logger
 }
 
-func NewInscripcionesAdminHandler(repo *storage.InscripcionesRepo, logger *zap.Logger) *InscripcionesAdminHandler {
-	return &InscripcionesAdminHandler{repo: repo, logger: logger}
+func NewInscripcionesAdminHandler(repo *storage.InscripcionesRepo, audit *storage.AuditRepo, logger *zap.Logger) *InscripcionesAdminHandler {
+	return &InscripcionesAdminHandler{repo: repo, audit: audit, logger: logger}
 }
 
 func (h *InscripcionesAdminHandler) List(c *fiber.Ctx) error {
@@ -84,6 +85,12 @@ func (h *InscripcionesAdminHandler) UpdateStatus(c *fiber.Ctx) error {
 	if err := h.repo.UpdateStatus(c.Context(), id, req.Status); err != nil {
 		h.logger.Error("admin: update inscripcion status", zap.String("id", id), zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal error"})
+	}
+
+	tenantID := TenantIDFromCtx(c)
+	adminID := AdminIDFromCtx(c)
+	if h.audit != nil {
+		h.audit.Log(c.Context(), tenantID, adminID, "inscripcion.status_change", "inscripciones", id, fiber.Map{"status": req.Status})
 	}
 
 	return c.JSON(fiber.Map{"ok": true, "id": id, "status": req.Status})

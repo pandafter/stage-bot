@@ -10,6 +10,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"go.uber.org/zap"
 
@@ -92,7 +93,20 @@ func (s *Server) setupRoutes(deps Dependencies) {
 		adminGroup := s.app.Group("/api/admin")
 
 		// Auth (public — no JWT required)
-		adminGroup.Post("/auth/login", deps.Admin.Auth.Login)
+		// Rate limit: 5 intentos por minuto por IP en el login
+		loginLimiter := limiter.New(limiter.Config{
+			Max:        5,
+			Expiration: 60 * time.Second,
+			KeyGenerator: func(c *fiber.Ctx) string {
+				return c.IP()
+			},
+			LimitReached: func(c *fiber.Ctx) error {
+				return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+					"error": "Demasiados intentos. Espera 1 minuto.",
+				})
+			},
+		})
+		adminGroup.Post("/auth/login", loginLimiter, deps.Admin.Auth.Login)
 
 		// Protected routes
 		protected := adminGroup.Use(adminpkg.RequireJWT(s.cfg))
@@ -136,6 +150,14 @@ func (s *Server) setupRoutes(deps Dependencies) {
 		protected.Get("/inscripciones/:id", deps.Admin.Inscripciones.Get)
 		protected.Patch("/inscripciones/:id/status", deps.Admin.Inscripciones.UpdateStatus)
 	}
+
+	// Security headers para rutas admin
+	s.app.Use("/admin", func(c *fiber.Ctx) error {
+		c.Set("X-Frame-Options", "DENY")
+		c.Set("X-Content-Type-Options", "nosniff")
+		c.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		return c.Next()
+	})
 
 	// SPA fallback (must be last)
 	if err := spa.Register(s.app); err != nil {

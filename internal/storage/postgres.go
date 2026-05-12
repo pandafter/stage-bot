@@ -163,6 +163,17 @@ func (db *DB) migrate(ctx context.Context) error {
 		`ALTER TABLE inscripciones ADD COLUMN IF NOT EXISTS tenant_id TEXT`,
 		`UPDATE inscripciones SET tenant_id = 'st4ge' WHERE tenant_id IS NULL`,
 		`CREATE INDEX IF NOT EXISTS idx_inscripciones_tenant_status ON inscripciones(tenant_id, status, created_at DESC)`,
+		`CREATE TABLE IF NOT EXISTS admin_audit_log (
+			id          BIGSERIAL PRIMARY KEY,
+			tenant_id   TEXT NOT NULL,
+			admin_id    BIGINT NOT NULL,
+			action      TEXT NOT NULL,
+			entity      TEXT NOT NULL,
+			entity_id   TEXT,
+			diff        JSONB,
+			at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_tenant_at ON admin_audit_log(tenant_id, at DESC)`,
 	}
 	for _, m := range migrations {
 		if _, err := db.Pool.Exec(ctx, m); err != nil {

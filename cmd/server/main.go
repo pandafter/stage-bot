@@ -69,7 +69,9 @@ func main() {
 		logger.Fatal("media store init", zap.Error(err))
 	}
 
-	adminHandler := adminpkg.NewHandler(cfg, adminUsersRepo, cmsRepo, formConfigRepo, repo, mediaStore, tenantsRepo, logger)
+	auditRepo := storage.NewAuditRepo(db)
+
+	adminHandler := adminpkg.NewHandler(cfg, adminUsersRepo, cmsRepo, formConfigRepo, repo, mediaStore, tenantsRepo, auditRepo, logger)
 
 	srv := server.New(cfg, server.Dependencies{API: apiHandler, Bot: botHandler, Admin: adminHandler}, logger)
 	if err := srv.Start(); err != nil {

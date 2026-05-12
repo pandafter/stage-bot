@@ -14,11 +14,12 @@ var validSectionKeys = map[string]bool{
 
 type CMSHandler struct {
 	cms    *storage.CMSRepo
+	audit  *storage.AuditRepo
 	logger *zap.Logger
 }
 
-func NewCMSHandler(cms *storage.CMSRepo, logger *zap.Logger) *CMSHandler {
-	return &CMSHandler{cms: cms, logger: logger}
+func NewCMSHandler(cms *storage.CMSRepo, audit *storage.AuditRepo, logger *zap.Logger) *CMSHandler {
+	return &CMSHandler{cms: cms, audit: audit, logger: logger}
 }
 
 func (h *CMSHandler) GetSections(c *fiber.Ctx) error {
@@ -87,6 +88,10 @@ func (h *CMSHandler) UpsertSection(c *fiber.Ctx) error {
 	if err := h.cms.UpsertSection(c.Context(), tenantID, key, req.Data, isPublished, adminID); err != nil {
 		h.logger.Error("cms: upsert section", zap.String("key", key), zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal error"})
+	}
+
+	if h.audit != nil {
+		h.audit.Log(c.Context(), tenantID, adminID, "cms.update", "cms_sections", key, req.Data)
 	}
 
 	s, _ := h.cms.GetSection(c.Context(), tenantID, key)
