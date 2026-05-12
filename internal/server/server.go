@@ -42,9 +42,9 @@ func New(cfg *config.Config, deps Dependencies, logger *zap.Logger) *Server {
 
 	app.Use(recover.New())
 
-	allowOrigins := "https://www.scuderiast4ge.com"
-	if !cfg.IsDevelopment() {
-		allowOrigins = "*"
+	allowOrigins := "https://www.scuderiast4ge.com,https://scuderiast4ge.com"
+	if cfg.IsDevelopment() {
+		allowOrigins = "http://localhost:5173,http://localhost:3000"
 	}
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: allowOrigins,

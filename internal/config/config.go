@@ -41,6 +41,19 @@ type Config struct {
 	AppSecret          string // Facebook App Secret for webhook signature verification
 	TestSenderID       string // In development, only respond to this sender ID
 	BotAudioURL        string // URL of the director's pre-recorded audio message
+
+	// Admin Panel (JWT + bootstrap)
+	JWTSecret         string
+	AdminUsername     string
+	AdminPasswordHash string // bcrypt hash
+	DefaultTenant     string
+
+	// Cloudflare R2 (media storage)
+	R2AccountID  string
+	R2AccessKey  string
+	R2SecretKey  string
+	R2Bucket     string
+	R2PublicURL  string
 }
 
 func Load() (*Config, error) {
@@ -66,6 +79,19 @@ func Load() (*Config, error) {
 		AppSecret:          getEnv("APP_SECRET", ""),
 		TestSenderID:       getEnv("TEST_SENDER_ID", ""),
 		BotAudioURL:        getEnv("BOT_AUDIO_URL", ""),
+
+		// Admin Panel
+		JWTSecret:         getEnv("JWT_SECRET", ""),
+		AdminUsername:     getEnv("ADMIN_USERNAME", "admin"),
+		AdminPasswordHash: getEnv("ADMIN_PASSWORD_HASH", ""),
+		DefaultTenant:     getEnv("DEFAULT_TENANT", "st4ge"),
+
+		// Cloudflare R2
+		R2AccountID:  getEnv("R2_ACCOUNT_ID", ""),
+		R2AccessKey:  getEnv("R2_ACCESS_KEY", ""),
+		R2SecretKey:  getEnv("R2_SECRET_KEY", ""),
+		R2Bucket:     getEnv("R2_BUCKET", ""),
+		R2PublicURL:  getEnv("R2_PUBLIC_URL", ""),
 	}
 
 	if err := cfg.validate(); err != nil {
