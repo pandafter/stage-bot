@@ -125,6 +125,12 @@ func (s *Server) setupRoutes(deps Dependencies) {
 		// Form config — payment methods
 		protected.Get("/form/methods", deps.Admin.FormConfig.ListMethods)
 		protected.Patch("/form/methods/:id", deps.Admin.FormConfig.UpdateMethod)
+
+		// Inscripciones admin (export.csv must precede :id param)
+		protected.Get("/inscripciones", deps.Admin.Inscripciones.List)
+		protected.Get("/inscripciones/export.csv", deps.Admin.Inscripciones.ExportCSV)
+		protected.Get("/inscripciones/:id", deps.Admin.Inscripciones.Get)
+		protected.Patch("/inscripciones/:id/status", deps.Admin.Inscripciones.UpdateStatus)
 	}
 
 	// SPA fallback (must be last)

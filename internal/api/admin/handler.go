@@ -9,12 +9,13 @@ import (
 )
 
 type Handler struct {
-	cfg        *config.Config
-	Auth       *AuthHandler
-	CMS        *CMSHandler
-	Media      *MediaHandler
-	FormConfig *FormConfigHandler
-	logger     *zap.Logger
+	cfg           *config.Config
+	Auth          *AuthHandler
+	CMS           *CMSHandler
+	Media         *MediaHandler
+	FormConfig    *FormConfigHandler
+	Inscripciones *InscripcionesAdminHandler
+	logger        *zap.Logger
 }
 
 func NewHandler(
@@ -22,15 +23,17 @@ func NewHandler(
 	users *storage.AdminUsersRepo,
 	cms *storage.CMSRepo,
 	formConfig *storage.FormConfigRepo,
+	inscripcionesRepo *storage.InscripcionesRepo,
 	mediaStore media.Store,
 	logger *zap.Logger,
 ) *Handler {
 	return &Handler{
-		cfg:        cfg,
-		Auth:       NewAuthHandler(cfg, users, logger),
-		CMS:        NewCMSHandler(cms, logger),
-		Media:      NewMediaHandler(mediaStore, cms, logger),
-		FormConfig: NewFormConfigHandler(formConfig, logger),
-		logger:     logger,
+		cfg:           cfg,
+		Auth:          NewAuthHandler(cfg, users, logger),
+		CMS:           NewCMSHandler(cms, logger),
+		Media:         NewMediaHandler(mediaStore, cms, logger),
+		FormConfig:    NewFormConfigHandler(formConfig, logger),
+		Inscripciones: NewInscripcionesAdminHandler(inscripcionesRepo, logger),
+		logger:        logger,
 	}
 }

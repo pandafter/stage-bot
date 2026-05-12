@@ -71,6 +71,39 @@ export interface InscripcionAdmin {
   created_at: string
 }
 
+// Extended type used by the admin inscripciones panel
+export interface AdminInscripcion {
+  id: string
+  nombre_piloto: string
+  email: string
+  plan: string
+  metodo_pago: string
+  status: string
+  monto_cop: number
+  fecha_curso: string
+  telefono: string
+  ciudad: string
+  tipo_documento: string
+  numero_documento: string
+  eps: string
+  grupo_sanguineo: string
+  familiar_nombre: string
+  familiar_telefono: string
+  instagram_user: string
+  comprobante_path: string
+  created_at: string
+}
+
+export interface InscripcionFilter {
+  status?: string
+  date_from?: string
+  date_to?: string
+  plan?: string
+  search?: string
+  limit?: number
+  page?: number
+}
+
 export interface Theme {
   primary_color: string
   secondary_color: string
