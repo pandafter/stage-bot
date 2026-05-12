@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/kart-academy/instagram-bot/internal/api"
+	adminpkg "github.com/kart-academy/instagram-bot/internal/api/admin"
 	"github.com/kart-academy/instagram-bot/internal/bot"
 	"github.com/kart-academy/instagram-bot/internal/config"
 	"github.com/kart-academy/instagram-bot/internal/server"
@@ -37,7 +38,26 @@ func main() {
 	apiHandler := api.NewHandler(cfg, repo, telegram, bold, logger)
 	botHandler := bot.NewHandler(cfg, logger) // nil if PAGE_ACCESS_TOKEN not set
 
-	srv := server.New(cfg, server.Dependencies{API: apiHandler, Bot: botHandler}, logger)
+	adminUsersRepo := storage.NewAdminUsersRepo(db)
+
+	// Bootstrap: create first admin if ADMIN_PASSWORD_HASH is set and no users exist for the tenant.
+	if cfg.AdminPasswordHash != "" {
+		count, err := adminUsersRepo.CountByTenant(ctx, cfg.DefaultTenant)
+		if err != nil {
+			logger.Error("admin bootstrap check", zap.Error(err))
+		} else if count == 0 {
+			_, err = adminUsersRepo.Create(ctx, cfg.DefaultTenant, cfg.AdminUsername, cfg.AdminPasswordHash, "owner")
+			if err != nil {
+				logger.Error("admin bootstrap create", zap.Error(err))
+			} else {
+				logger.Info("admin bootstrap: created initial admin", zap.String("username", cfg.AdminUsername))
+			}
+		}
+	}
+
+	adminHandler := adminpkg.NewHandler(cfg, adminUsersRepo, logger)
+
+	srv := server.New(cfg, server.Dependencies{API: apiHandler, Bot: botHandler, Admin: adminHandler}, logger)
 	if err := srv.Start(); err != nil {
 		logger.Fatal("server", zap.Error(err))
 	}

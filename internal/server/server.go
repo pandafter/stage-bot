@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/kart-academy/instagram-bot/internal/api"
+	adminpkg "github.com/kart-academy/instagram-bot/internal/api/admin"
 	"github.com/kart-academy/instagram-bot/internal/bot"
 	"github.com/kart-academy/instagram-bot/internal/config"
 	"github.com/kart-academy/instagram-bot/internal/spa"
@@ -26,8 +27,9 @@ type Server struct {
 }
 
 type Dependencies struct {
-	API *api.Handler
-	Bot *bot.Handler // nil if bot is not configured
+	API   *api.Handler
+	Bot   *bot.Handler       // nil if bot is not configured
+	Admin *adminpkg.Handler  // nil if admin is not configured
 }
 
 func New(cfg *config.Config, deps Dependencies, logger *zap.Logger) *Server {
@@ -83,6 +85,18 @@ func (s *Server) setupRoutes(deps Dependencies) {
 		s.app.Post("/dev/inscripciones/:id/confirm", deps.API.DevConfirmPayment)
 		s.app.Post("/dev/inscripciones/:id/reject", deps.API.DevRejectPayment)
 		s.logger.Info("⚠️  dev endpoints activos — POST /dev/inscripciones/:id/confirm|reject")
+	}
+
+	// Admin panel routes
+	if deps.Admin != nil {
+		adminGroup := s.app.Group("/api/admin")
+
+		// Auth (public — no JWT required)
+		adminGroup.Post("/auth/login", deps.Admin.Auth.Login)
+
+		// Protected routes
+		protected := adminGroup.Use(adminpkg.RequireJWT(s.cfg))
+		protected.Get("/me", deps.Admin.Auth.Me)
 	}
 
 	// SPA fallback (must be last)
