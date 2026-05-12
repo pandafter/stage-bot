@@ -15,6 +15,7 @@ type Handler struct {
 	Media         *MediaHandler
 	FormConfig    *FormConfigHandler
 	Inscripciones *InscripcionesAdminHandler
+	Theme         *ThemeHandler
 	logger        *zap.Logger
 }
 
@@ -25,6 +26,7 @@ func NewHandler(
 	formConfig *storage.FormConfigRepo,
 	inscripcionesRepo *storage.InscripcionesRepo,
 	mediaStore media.Store,
+	tenantsRepo *storage.TenantsRepo,
 	logger *zap.Logger,
 ) *Handler {
 	return &Handler{
@@ -34,6 +36,7 @@ func NewHandler(
 		Media:         NewMediaHandler(mediaStore, cms, logger),
 		FormConfig:    NewFormConfigHandler(formConfig, logger),
 		Inscripciones: NewInscripcionesAdminHandler(inscripcionesRepo, logger),
+		Theme:         NewThemeHandler(tenantsRepo, logger),
 		logger:        logger,
 	}
 }

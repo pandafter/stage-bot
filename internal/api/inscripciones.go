@@ -24,6 +24,7 @@ type Handler struct {
 	bold          *BoldClient
 	logger        *zap.Logger
 	cmsRepo       *storage.CMSRepo
+	tenantsRepo   *storage.TenantsRepo
 	defaultTenant string
 }
 
@@ -44,6 +45,11 @@ func NewHandler(cfg *config.Config, repo *storage.InscripcionesRepo, telegram *T
 // WithCMSRepo attaches a CMS repository so GetConfig can include published sections.
 func (h *Handler) WithCMSRepo(cms *storage.CMSRepo) {
 	h.cmsRepo = cms
+}
+
+// WithTenantsRepo attaches a tenants repository so GetConfig can include the tenant theme.
+func (h *Handler) WithTenantsRepo(tenants *storage.TenantsRepo) {
+	h.tenantsRepo = tenants
 }
 
 // Create handles POST /api/inscripciones.

@@ -42,9 +42,12 @@ func main() {
 	cmsRepo := storage.NewCMSRepo(db)
 	formConfigRepo := storage.NewFormConfigRepo(db)
 	adminUsersRepo := storage.NewAdminUsersRepo(db)
+	tenantsRepo := storage.NewTenantsRepo(db)
 
 	// Attach CMS repo to public API so /api/config includes published sections.
 	apiHandler.WithCMSRepo(cmsRepo)
+	// Attach tenants repo so /api/config includes the tenant theme.
+	apiHandler.WithTenantsRepo(tenantsRepo)
 
 	// Bootstrap: create first admin if ADMIN_PASSWORD_HASH is set and no users exist for the tenant.
 	if cfg.AdminPasswordHash != "" {
@@ -66,7 +69,7 @@ func main() {
 		logger.Fatal("media store init", zap.Error(err))
 	}
 
-	adminHandler := adminpkg.NewHandler(cfg, adminUsersRepo, cmsRepo, formConfigRepo, repo, mediaStore, logger)
+	adminHandler := adminpkg.NewHandler(cfg, adminUsersRepo, cmsRepo, formConfigRepo, repo, mediaStore, tenantsRepo, logger)
 
 	srv := server.New(cfg, server.Dependencies{API: apiHandler, Bot: botHandler, Admin: adminHandler}, logger)
 	if err := srv.Start(); err != nil {

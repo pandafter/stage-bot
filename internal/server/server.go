@@ -126,6 +126,10 @@ func (s *Server) setupRoutes(deps Dependencies) {
 		protected.Get("/form/methods", deps.Admin.FormConfig.ListMethods)
 		protected.Patch("/form/methods/:id", deps.Admin.FormConfig.UpdateMethod)
 
+		// Theme
+		protected.Get("/theme", deps.Admin.Theme.Get)
+		protected.Put("/theme", deps.Admin.Theme.Update)
+
 		// Inscripciones admin (export.csv must precede :id param)
 		protected.Get("/inscripciones", deps.Admin.Inscripciones.List)
 		protected.Get("/inscripciones/export.csv", deps.Admin.Inscripciones.ExportCSV)
