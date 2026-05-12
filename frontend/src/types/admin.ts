@@ -1,8 +1,9 @@
 export interface AdminUser {
-  id: number
-  tenant_id: string
+  id: string
   username: string
-  role: string
+  email?: string
+  role: 'admin' | 'editor'
+  created_at: string
 }
 
 export interface LoginRequest {
@@ -15,70 +16,65 @@ export interface LoginResponse {
   user: AdminUser
 }
 
-export interface MediaItem {
+export interface CmsSection {
+  key: string
+  label: string
+  data: Record<string, unknown>
+  is_published: boolean
+  updated_at: string
+}
+
+export interface MediaAsset {
   id: number
   filename: string
   url: string
-  storage_key: string
-  mime_type: string
-  size_bytes: number
   alt_text: string
   tags: string[]
-  created_at: string
+  uploaded_at: string
+  size: number
 }
 
 export interface FormDate {
   id: number
-  tenant_id: string
-  label: string
-  starts_on: string
-  is_enabled: boolean
-  capacity?: number
-  sort_order: number
-  created_at: string
+  date: string
+  capacity: number
+  available_slots: number
+  is_active: boolean
+  display_order: number
 }
 
-export interface PricingPlan {
+export interface FormPlan {
   id: number
-  tenant_id: string
-  key: string
   name: string
-  description: string
   price_cop: number
-  features: string[]
-  image_url: string
-  is_enabled: boolean
-  sort_order: number
+  description: string
+  is_active: boolean
+  display_order: number
 }
 
-export interface PaymentMethod {
+export interface FormMethod {
   id: number
-  tenant_id: string
-  key: string
+  code: string
   label: string
-  is_enabled: boolean
+  is_active: boolean
   surcharge_pct: number
-  sort_order: number
 }
 
-export interface InscripcionFilter {
-  status?: string
-  date_from?: string
-  date_to?: string
-  plan?: string
-  search?: string
-  page?: number
-  limit?: number
-}
-
-export interface AdminInscripcion {
+export interface InscripcionAdmin {
   id: string
-  email: string
   nombre_piloto: string
+  email: string
+  modalidad: string
   metodo_pago: string
-  plan: string
-  monto_cop: number
   status: string
+  monto_cop: number
   created_at: string
-  fecha_curso: string
+}
+
+export interface Theme {
+  primary_color: string
+  secondary_color: string
+  font_family: string
+  logo_url?: string
+  favicon_url?: string
 }
