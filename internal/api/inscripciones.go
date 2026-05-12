@@ -18,11 +18,13 @@ import (
 )
 
 type Handler struct {
-	cfg      *config.Config
-	repo     *storage.InscripcionesRepo
-	telegram *TelegramClient
-	bold     *BoldClient
-	logger   *zap.Logger
+	cfg           *config.Config
+	repo          *storage.InscripcionesRepo
+	telegram      *TelegramClient
+	bold          *BoldClient
+	logger        *zap.Logger
+	cmsRepo       *storage.CMSRepo
+	defaultTenant string
 }
 
 func NewHandler(cfg *config.Config, repo *storage.InscripcionesRepo, telegram *TelegramClient, bold *BoldClient, logger *zap.Logger) *Handler {
@@ -30,12 +32,18 @@ func NewHandler(cfg *config.Config, repo *storage.InscripcionesRepo, telegram *T
 		_ = os.MkdirAll(cfg.UploadsDir, 0o755)
 	}
 	return &Handler{
-		cfg:      cfg,
-		repo:     repo,
-		telegram: telegram,
-		bold:     bold,
-		logger:   logger,
+		cfg:           cfg,
+		repo:          repo,
+		telegram:      telegram,
+		bold:          bold,
+		logger:        logger,
+		defaultTenant: cfg.DefaultTenant,
 	}
+}
+
+// WithCMSRepo attaches a CMS repository so GetConfig can include published sections.
+func (h *Handler) WithCMSRepo(cms *storage.CMSRepo) {
+	h.cmsRepo = cms
 }
 
 // Create handles POST /api/inscripciones.

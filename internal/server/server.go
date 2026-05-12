@@ -97,6 +97,34 @@ func (s *Server) setupRoutes(deps Dependencies) {
 		// Protected routes
 		protected := adminGroup.Use(adminpkg.RequireJWT(s.cfg))
 		protected.Get("/me", deps.Admin.Auth.Me)
+
+		// CMS sections
+		protected.Get("/cms/sections", deps.Admin.CMS.GetSections)
+		protected.Get("/cms/sections/:key", deps.Admin.CMS.GetSection)
+		protected.Put("/cms/sections/:key", deps.Admin.CMS.UpsertSection)
+
+		// Media
+		protected.Get("/media", deps.Admin.Media.List)
+		protected.Post("/media", deps.Admin.Media.Upload)
+		protected.Delete("/media/:id", deps.Admin.Media.Delete)
+		protected.Patch("/media/:id", deps.Admin.Media.Update)
+
+		// Form config — dates
+		protected.Get("/form/dates", deps.Admin.FormConfig.ListDates)
+		protected.Post("/form/dates", deps.Admin.FormConfig.CreateDate)
+		protected.Post("/form/dates/reorder", deps.Admin.FormConfig.ReorderDates)
+		protected.Patch("/form/dates/:id", deps.Admin.FormConfig.UpdateDate)
+		protected.Delete("/form/dates/:id", deps.Admin.FormConfig.DeleteDate)
+
+		// Form config — plans
+		protected.Get("/form/plans", deps.Admin.FormConfig.ListPlans)
+		protected.Post("/form/plans", deps.Admin.FormConfig.CreatePlan)
+		protected.Patch("/form/plans/:id", deps.Admin.FormConfig.UpdatePlan)
+		protected.Delete("/form/plans/:id", deps.Admin.FormConfig.DeletePlan)
+
+		// Form config — payment methods
+		protected.Get("/form/methods", deps.Admin.FormConfig.ListMethods)
+		protected.Patch("/form/methods/:id", deps.Admin.FormConfig.UpdateMethod)
 	}
 
 	// SPA fallback (must be last)

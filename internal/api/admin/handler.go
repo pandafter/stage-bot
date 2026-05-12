@@ -4,24 +4,33 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/kart-academy/instagram-bot/internal/config"
+	"github.com/kart-academy/instagram-bot/internal/media"
 	"github.com/kart-academy/instagram-bot/internal/storage"
 )
 
-// Handler is the entry point for the admin package — groups auth, CMS, media, form, inscripciones.
 type Handler struct {
-	cfg    *config.Config
-	Auth   *AuthHandler
-	logger *zap.Logger
+	cfg        *config.Config
+	Auth       *AuthHandler
+	CMS        *CMSHandler
+	Media      *MediaHandler
+	FormConfig *FormConfigHandler
+	logger     *zap.Logger
 }
 
 func NewHandler(
 	cfg *config.Config,
 	users *storage.AdminUsersRepo,
+	cms *storage.CMSRepo,
+	formConfig *storage.FormConfigRepo,
+	mediaStore media.Store,
 	logger *zap.Logger,
 ) *Handler {
 	return &Handler{
-		cfg:    cfg,
-		Auth:   NewAuthHandler(cfg, users, logger),
-		logger: logger,
+		cfg:        cfg,
+		Auth:       NewAuthHandler(cfg, users, logger),
+		CMS:        NewCMSHandler(cms, logger),
+		Media:      NewMediaHandler(mediaStore, cms, logger),
+		FormConfig: NewFormConfigHandler(formConfig, logger),
+		logger:     logger,
 	}
 }

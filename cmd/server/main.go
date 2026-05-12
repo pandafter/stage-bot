@@ -10,6 +10,7 @@ import (
 	adminpkg "github.com/kart-academy/instagram-bot/internal/api/admin"
 	"github.com/kart-academy/instagram-bot/internal/bot"
 	"github.com/kart-academy/instagram-bot/internal/config"
+	"github.com/kart-academy/instagram-bot/internal/media"
 	"github.com/kart-academy/instagram-bot/internal/server"
 	"github.com/kart-academy/instagram-bot/internal/storage"
 )
@@ -36,9 +37,14 @@ func main() {
 	telegram := api.NewTelegramClient(cfg.TelegramBotToken, cfg.TelegramChatID, logger)
 	bold := api.NewBoldClient(cfg.BoldAPIKey, cfg.PublicURL, logger)
 	apiHandler := api.NewHandler(cfg, repo, telegram, bold, logger)
-	botHandler := bot.NewHandler(cfg, logger) // nil if PAGE_ACCESS_TOKEN not set
+	botHandler := bot.NewHandler(cfg, logger)
 
+	cmsRepo := storage.NewCMSRepo(db)
+	formConfigRepo := storage.NewFormConfigRepo(db)
 	adminUsersRepo := storage.NewAdminUsersRepo(db)
+
+	// Attach CMS repo to public API so /api/config includes published sections.
+	apiHandler.WithCMSRepo(cmsRepo)
 
 	// Bootstrap: create first admin if ADMIN_PASSWORD_HASH is set and no users exist for the tenant.
 	if cfg.AdminPasswordHash != "" {
@@ -55,7 +61,12 @@ func main() {
 		}
 	}
 
-	adminHandler := adminpkg.NewHandler(cfg, adminUsersRepo, logger)
+	mediaStore, err := media.NewFromConfig(cfg)
+	if err != nil {
+		logger.Fatal("media store init", zap.Error(err))
+	}
+
+	adminHandler := adminpkg.NewHandler(cfg, adminUsersRepo, cmsRepo, formConfigRepo, mediaStore, logger)
 
 	srv := server.New(cfg, server.Dependencies{API: apiHandler, Bot: botHandler, Admin: adminHandler}, logger)
 	if err := srv.Start(); err != nil {
