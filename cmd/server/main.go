@@ -64,6 +64,13 @@ func main() {
 		}
 	}
 
+	// Seed CMS sections with default content if they don't exist yet.
+	if err := storage.SeedCMSSections(ctx, cmsRepo, cfg.DefaultTenant); err != nil {
+		logger.Error("cms seed", zap.Error(err))
+	} else {
+		logger.Info("cms seed: OK")
+	}
+
 	mediaStore, err := media.NewFromConfig(cfg)
 	if err != nil {
 		logger.Fatal("media store init", zap.Error(err))
