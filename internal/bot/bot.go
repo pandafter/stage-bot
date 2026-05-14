@@ -179,34 +179,42 @@ func (h *Handler) handleMessage(msg Messaging) {
 		zap.String("sender", senderID),
 	)
 
-	// Step 1: Send the director's pre-recorded audio
-	if h.cfg.BotAudioURL != "" {
-		if err := h.msgr.SendAudio(senderID, h.cfg.BotAudioURL); err != nil {
-			h.logger.Error("bot: failed to send audio",
-				zap.String("sender", senderID),
-				zap.Error(err),
-			)
-			// Continue anyway — still send the link
-		}
-		// Small delay so messages arrive in order
-		time.Sleep(1 * time.Second)
-	}
-
-	// Step 2: Send a text with the registration link
 	registrationURL := h.cfg.PublicURL + "/inscripcion"
 	if h.cfg.PublicURL == "" {
 		registrationURL = "https://scuderiastage.com/inscripcion"
 	}
-
 	replyText := fmt.Sprintf(
-		"Te comparto el link para que puedas ver mas información del cuso y puedas inscribirte: %s",
+		"Te comparto el link para que puedas ver más información del curso y puedas inscribirte: %s",
 		registrationURL,
 	)
 
-	if err := h.msgr.SendText(senderID, replyText); err != nil {
+	// Send audio and text concurrently to minimise reply latency.
+	type result struct{ err error }
+	audioCh := make(chan result, 1)
+	textCh := make(chan result, 1)
+
+	if h.cfg.BotAudioURL != "" {
+		go func() {
+			audioCh <- result{h.msgr.SendAudio(senderID, h.cfg.BotAudioURL)}
+		}()
+	} else {
+		audioCh <- result{nil}
+	}
+
+	go func() {
+		textCh <- result{h.msgr.SendText(senderID, replyText)}
+	}()
+
+	if r := <-audioCh; r.err != nil {
+		h.logger.Error("bot: failed to send audio",
+			zap.String("sender", senderID),
+			zap.Error(r.err),
+		)
+	}
+	if r := <-textCh; r.err != nil {
 		h.logger.Error("bot: failed to send text",
 			zap.String("sender", senderID),
-			zap.Error(err),
+			zap.Error(r.err),
 		)
 		return
 	}
