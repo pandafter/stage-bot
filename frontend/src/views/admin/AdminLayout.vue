@@ -28,7 +28,7 @@ function logout() {
 </script>
 
 <template>
-  <div class="flex h-screen bg-gray-50 overflow-hidden">
+  <div class="admin-shell flex h-screen bg-gray-50 overflow-hidden">
     <!-- Sidebar -->
     <aside class="w-60 bg-white border-r border-gray-200 flex flex-col shrink-0">
       <!-- Brand -->
