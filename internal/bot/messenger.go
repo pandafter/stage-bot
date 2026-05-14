@@ -59,8 +59,9 @@ func (m *Messenger) sendRequest(payload any) error {
 // SendText sends a plain text message to the recipient.
 func (m *Messenger) SendText(recipientID, text string) error {
 	payload := map[string]any{
-		"recipient": map[string]string{"id": recipientID},
-		"message":   map[string]string{"text": text},
+		"recipient":      map[string]string{"id": recipientID},
+		"messaging_type": "RESPONSE",
+		"message":        map[string]string{"text": text},
 	}
 	return m.sendRequest(payload)
 }
@@ -68,12 +69,14 @@ func (m *Messenger) SendText(recipientID, text string) error {
 // SendAudio sends an audio attachment (by URL) to the recipient.
 func (m *Messenger) SendAudio(recipientID, audioURL string) error {
 	payload := map[string]any{
-		"recipient": map[string]string{"id": recipientID},
+		"recipient":      map[string]string{"id": recipientID},
+		"messaging_type": "RESPONSE",
 		"message": map[string]any{
 			"attachment": map[string]any{
 				"type": "audio",
-				"payload": map[string]string{
-					"url": audioURL,
+				"payload": map[string]any{
+					"url":         audioURL,
+					"is_reusable": true,
 				},
 			},
 		},
