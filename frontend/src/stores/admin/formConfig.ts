@@ -27,7 +27,7 @@ export const useFormConfigStore = defineStore('adminFormConfig', () => {
   }
 
   // Dates
-  async function createDate(data: Omit<FormDate, 'id' | 'available_slots'>) {
+  async function createDate(data: Omit<FormDate, 'id'>) {
     saving.value = true
     try {
       const created = await formConfigService.createDate(data as Record<string, unknown>)
@@ -56,7 +56,7 @@ export const useFormConfigStore = defineStore('adminFormConfig', () => {
   async function reorderDates(ids: number[]) {
     await formConfigService.reorderDates(ids)
     const map = Object.fromEntries(dates.value.map(d => [d.id, d]))
-    dates.value = ids.map((id, i) => ({ ...map[id], display_order: i })).filter(Boolean) as FormDate[]
+    dates.value = ids.map((id, i) => ({ ...map[id], sort_order: i })).filter(Boolean) as FormDate[]
   }
 
   // Plans
@@ -90,9 +90,9 @@ export const useFormConfigStore = defineStore('adminFormConfig', () => {
   async function toggleMethod(id: number, isEnabled: boolean) {
     saving.value = true
     try {
-      await formConfigService.updateMethod(id, { is_active: isEnabled })
+      await formConfigService.updateMethod(id, { is_enabled: isEnabled })
       const m = methods.value.find(m => m.id === id)
-      if (m) m.is_active = isEnabled
+      if (m) m.is_enabled = isEnabled
     } finally {
       saving.value = false
     }

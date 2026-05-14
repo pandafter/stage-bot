@@ -36,28 +36,31 @@ export interface MediaAsset {
 
 export interface FormDate {
   id: number
-  date: string
-  capacity: number
-  available_slots: number
-  is_active: boolean
-  display_order: number
+  label: string
+  starts_on: string
+  capacity: number | null
+  is_enabled: boolean
+  sort_order: number
 }
 
 export interface FormPlan {
   id: number
+  key: string
   name: string
   price_cop: number
   description: string
-  is_active: boolean
-  display_order: number
+  features: string[]
+  is_enabled: boolean
+  sort_order: number
 }
 
 export interface FormMethod {
   id: number
-  code: string
+  key: string
   label: string
-  is_active: boolean
+  is_enabled: boolean
   surcharge_pct: number
+  sort_order: number
 }
 
 export interface InscripcionAdmin {
