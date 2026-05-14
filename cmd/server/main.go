@@ -71,6 +71,13 @@ func main() {
 		logger.Info("cms seed: OK")
 	}
 
+	// Seed form config (dates, plans, payment methods) if empty.
+	if err := storage.SeedFormConfig(ctx, formConfigRepo, cfg.DefaultTenant); err != nil {
+		logger.Error("form config seed", zap.Error(err))
+	} else {
+		logger.Info("form config seed: OK")
+	}
+
 	mediaStore, err := media.NewFromConfig(cfg)
 	if err != nil {
 		logger.Fatal("media store init", zap.Error(err))
