@@ -204,6 +204,8 @@ func (h *Handler) handleMessage(msg Messaging) {
 		h.logger.Error("bot: failed to send text", zap.Error(err))
 		return
 	}
+
+	h.respondedTo[senderID] = time.Now()
 }
 
 // verifySignature checks the X-Hub-Signature-256 header against the body.

@@ -25,7 +25,7 @@ func NewFormConfigRepo(db *DB) *FormConfigRepo { return &FormConfigRepo{db: db} 
 
 func (r *FormConfigRepo) ListDates(ctx context.Context, tenantID string) ([]FormDateRecord, error) {
 	rows, err := r.db.Pool.Query(ctx,
-		`SELECT id, tenant_id, label, starts_on, is_enabled, capacity, sort_order, created_at
+		`SELECT id, tenant_id, label, starts_on::TEXT, is_enabled, capacity, sort_order, created_at
 		 FROM form_dates WHERE tenant_id=$1 ORDER BY sort_order, starts_on`, tenantID)
 	if err != nil {
 		return nil, err
@@ -47,7 +47,7 @@ func (r *FormConfigRepo) CreateDate(ctx context.Context, tenantID, label, starts
 	err := r.db.Pool.QueryRow(ctx,
 		`INSERT INTO form_dates (tenant_id, label, starts_on, is_enabled, capacity, sort_order)
 		 VALUES ($1,$2,$3,$4,$5,$6)
-		 RETURNING id, tenant_id, label, starts_on, is_enabled, capacity, sort_order, created_at`,
+		 RETURNING id, tenant_id, label, starts_on::TEXT, is_enabled, capacity, sort_order, created_at`,
 		tenantID, label, startsOn, isEnabled, capacity, sortOrder,
 	).Scan(&d.ID, &d.TenantID, &d.Label, &d.StartsOn, &d.IsEnabled, &d.Capacity, &d.SortOrder, &d.CreatedAt)
 	return &d, err
