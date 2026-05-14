@@ -1,72 +1,187 @@
 @import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;600;700&display=swap');
 
-:root {
-  --bg: #090909;
-  --surface: #121212;
-  --surface2: #1a1a1a;
-  --border: rgba(255, 255, 255, 0.07);
-  --border2: rgba(255, 255, 255, 0.12);
-  --gold: #f5c100;
-  --gold-dim: rgba(245, 193, 0, 0.12);
-  --gold-glow: rgba(245, 193, 0, 0.25);
-  --red: #e63200;
-  --text: #f0ede5;
-  --text-dim: #888;
-  --text-dimmer: #444;
+/* ── Site-wide base styles (dark racing theme) ──────────────────── */
+/* Inside @layer base so Tailwind utility classes always win over them */
+@layer base {
+  :root {
+    --bg: #090909;
+    --surface: #121212;
+    --surface2: #1a1a1a;
+    --border: rgba(255, 255, 255, 0.07);
+    --border2: rgba(255, 255, 255, 0.12);
+    --gold: #f5c100;
+    --gold-dim: rgba(245, 193, 0, 0.12);
+    --gold-glow: rgba(245, 193, 0, 0.25);
+    --red: #e63200;
+    --text: #f0ede5;
+    --text-dim: #888;
+    --text-dimmer: #444;
 
-  --font-display: 'Barlow Condensed', system-ui, sans-serif;
-  --font-body: 'DM Sans', system-ui, sans-serif;
+    --font-display: 'Barlow Condensed', system-ui, sans-serif;
+    --font-body: 'DM Sans', system-ui, sans-serif;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body,
+  #app {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100%;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: 0;
+    background: transparent;
+    color: inherit;
+  }
+
+  img,
+  video {
+    max-width: 100%;
+    display: block;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 900;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+    text-transform: uppercase;
+  }
+
+  input,
+  select,
+  textarea {
+    width: 100%;
+    font-family: inherit;
+    font-size: 16px;
+    color: var(--text);
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    padding: 14px 16px;
+    outline: none;
+    transition: border-color 0.15s ease;
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: var(--gold);
+  }
+
+  label {
+    display: block;
+    font-family: var(--font-display);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+
+  /* ── Admin panel resets — override dark theme for .admin-shell ── */
+  /* Higher specificity than the rules above, still in @layer base  */
+  /* Tailwind utility classes (in @layer utilities) will win over these */
+
+  .admin-shell {
+    background: #f9fafb;
+    color: #111827;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-weight: 400;
+    line-height: 1.5;
+  }
+
+  .admin-shell h1,
+  .admin-shell h2,
+  .admin-shell h3,
+  .admin-shell h4,
+  .admin-shell h5,
+  .admin-shell h6 {
+    font-family: system-ui, -apple-system, sans-serif;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: normal;
+    line-height: 1.3;
+    color: #111827;
+  }
+
+  .admin-shell p {
+    color: inherit;
+  }
+
+  .admin-shell input,
+  .admin-shell select,
+  .admin-shell textarea {
+    background: #ffffff;
+    color: #111827;
+    border: 1px solid #d1d5db;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    font-family: system-ui, -apple-system, sans-serif;
+    width: 100%;
+  }
+
+  .admin-shell input:focus,
+  .admin-shell select:focus,
+  .admin-shell textarea:focus {
+    border-color: #3b82f6;
+    outline: none;
+  }
+
+  .admin-shell label {
+    font-family: system-ui, -apple-system, sans-serif;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: normal;
+    font-size: 0.875rem;
+    color: #374151;
+    margin-bottom: 0;
+  }
+
+  .admin-shell button {
+    font-family: system-ui, -apple-system, sans-serif;
+    cursor: pointer;
+  }
+
+  .admin-shell a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .admin-shell img {
+    display: inline-block;
+    max-width: 100%;
+  }
+
+  .admin-shell svg {
+    display: inline-block;
+  }
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-html,
-body,
-#app {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-body);
-  -webkit-font-smoothing: antialiased;
-  min-height: 100%;
-}
-
-body {
-  overflow-x: hidden;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-button {
-  font-family: inherit;
-  cursor: pointer;
-  border: 0;
-  background: transparent;
-  color: inherit;
-}
-
-img,
-video {
-  max-width: 100%;
-  display: block;
-}
-
-h1,
-h2,
-h3 {
-  font-family: var(--font-display);
-  font-weight: 900;
-  line-height: 0.95;
-  letter-spacing: -0.01em;
-  text-transform: uppercase;
-}
+/* ── Site component styles (outside @layer — these override Tailwind) ── */
 
 .container {
   width: 100%;
@@ -140,109 +255,8 @@ h3 {
   width: 100%;
 }
 
-input,
-select,
-textarea {
-  width: 100%;
-  font-family: inherit;
-  font-size: 16px;
-  color: var(--text);
-  background: var(--surface2);
-  border: 1px solid var(--border2);
-  padding: 14px 16px;
-  outline: none;
-  transition: border-color 0.15s ease;
-}
-
-input:focus,
-select:focus,
-textarea:focus {
-  border-color: var(--gold);
-}
-
-label {
-  display: block;
-  font-family: var(--font-display);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 12px;
-  color: var(--text-dim);
-  margin-bottom: 6px;
-}
-
 .field-error {
   color: var(--red);
   font-size: 13px;
   margin-top: 6px;
-}
-
-/* ── Admin panel — reset dark-theme globals ─────────────────────── */
-.admin-shell,
-.admin-shell * {
-  box-sizing: border-box;
-}
-
-.admin-shell {
-  background: #f9fafb;
-  color: #111827;
-  font-family: system-ui, -apple-system, sans-serif;
-  font-weight: 400;
-  line-height: 1.5;
-}
-
-.admin-shell h1,
-.admin-shell h2,
-.admin-shell h3,
-.admin-shell h4 {
-  font-family: system-ui, -apple-system, sans-serif;
-  font-weight: 700;
-  text-transform: none;
-  letter-spacing: normal;
-  line-height: 1.3;
-}
-
-.admin-shell input,
-.admin-shell select,
-.admin-shell textarea {
-  background: #fff;
-  color: #111827;
-  border: 1px solid #d1d5db;
-  padding: 0;
-  font-size: 0.875rem;
-  font-family: system-ui, -apple-system, sans-serif;
-}
-
-.admin-shell input:focus,
-.admin-shell select:focus,
-.admin-shell textarea:focus {
-  border-color: #3b82f6;
-}
-
-.admin-shell label {
-  font-family: system-ui, -apple-system, sans-serif;
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: normal;
-  font-size: 0.875rem;
-  color: #374151;
-  margin-bottom: 0;
-}
-
-.admin-shell button {
-  border: revert;
-  background: revert;
-  color: revert;
-  font-family: system-ui, -apple-system, sans-serif;
-}
-
-.admin-shell a {
-  color: revert;
-  text-decoration: revert;
-}
-
-.admin-shell img,
-.admin-shell svg {
-  display: inline;
-  max-width: none;
 }
