@@ -182,7 +182,10 @@ func (h *Handler) handleMessage(msg Messaging) {
 	// Step 1: Send the director's pre-recorded audio
 	if h.cfg.BotAudioURL != "" {
 		if err := h.msgr.SendAudio(senderID, h.cfg.BotAudioURL); err != nil {
-			h.logger.Error("bot: failed to send audio", zap.Error(err))
+			h.logger.Error("bot: failed to send audio",
+				zap.String("sender", senderID),
+				zap.Error(err),
+			)
 			// Continue anyway — still send the link
 		}
 		// Small delay so messages arrive in order
@@ -201,7 +204,10 @@ func (h *Handler) handleMessage(msg Messaging) {
 	)
 
 	if err := h.msgr.SendText(senderID, replyText); err != nil {
-		h.logger.Error("bot: failed to send text", zap.Error(err))
+		h.logger.Error("bot: failed to send text",
+			zap.String("sender", senderID),
+			zap.Error(err),
+		)
 		return
 	}
 

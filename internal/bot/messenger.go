@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const graphAPIBase = "https://graph.instagram.com/v25.0/me/messages"
+const graphAPIBase = "https://graph.facebook.com/v25.0/me/messages"
 
 // Messenger sends messages via the Instagram Messaging API.
 type Messenger struct {
