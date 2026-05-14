@@ -1,10 +1,21 @@
 <script setup lang="ts">
-const stats = [
+import { computed, onMounted } from 'vue'
+import { useLandingStore } from '@/stores/landing'
+
+const store = useLandingStore()
+onMounted(() => store.load())
+
+const defaultStats = [
   { value: '+1000', label: 'Pilotos formados' },
   { value: '10 hrs', label: 'En pista por estudiante' },
   { value: '2:1', label: 'Ratio piloto/instructor' },
   { value: '100%', label: 'Satisfacción del cliente' },
 ]
+
+const stats = computed(() => {
+  const items = store.stats()
+  return items.length > 0 ? items : defaultStats
+})
 </script>
 
 <template>

@@ -1,13 +1,23 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useLandingStore } from '@/stores/landing'
 
-const faqs = [
-  { q: '¿Necesito experiencia previa?', a: 'No. El curso está diseñado para empezar desde cero, pero también reta a quienes ya han manejado.' },
-  { q: '¿Qué edades aplican?', a: 'Recibimos pilotos desde los 8 años hasta adultos. Cada grupo se ajusta por edad y experiencia.' },
-  { q: '¿Qué incluye la inscripción?', a: 'Equipo de seguridad completo, todas las tandas en pista, instrucción uno a uno y diploma final.' },
-  { q: '¿Cómo pago?', a: 'Tarjeta de crédito/débito, Nequi, Bancolombia, PSE o transferencia con comprobante. Procesamos pagos vía Bold.' },
-  { q: '¿Puedo solo reservar el cupo?', a: 'Sí. La reserva es de $150.000 y abona al pago completo. Te garantiza tu lugar mientras decides.' },
+const store = useLandingStore()
+onMounted(() => store.load())
+
+const defaultFaqs = [
+  { q: '¿Necesito experiencia previa?', a_html: '<p>No. El curso está diseñado para empezar desde cero, pero también reta a quienes ya han manejado.</p>' },
+  { q: '¿Qué edades aplican?', a_html: '<p>Recibimos pilotos desde los 8 años hasta adultos. Cada grupo se ajusta por edad y experiencia.</p>' },
+  { q: '¿Qué incluye la inscripción?', a_html: '<p>Equipo de seguridad completo, todas las tandas en pista, instrucción uno a uno y diploma final.</p>' },
+  { q: '¿Cómo pago?', a_html: '<p>Tarjeta de crédito/débito, Nequi, Bancolombia, PSE o transferencia con comprobante. Procesamos pagos vía Bold.</p>' },
+  { q: '¿Puedo solo reservar el cupo?', a_html: '<p>Sí. La reserva es de $150.000 y abona al pago completo. Te garantiza tu lugar mientras decides.</p>' },
 ]
+
+const faqs = computed(() => {
+  const items = store.faq()
+  return items.length > 0 ? items : defaultFaqs
+})
+
 const open = ref<number | null>(0)
 function toggle(i: number) { open.value = open.value === i ? null : i }
 </script>
@@ -23,7 +33,7 @@ function toggle(i: number) { open.value = open.value === i ? null : i }
             <span>{{ f.q }}</span>
             <span class="caret">{{ open === i ? '−' : '+' }}</span>
           </button>
-          <div v-if="open === i" class="a">{{ f.a }}</div>
+          <div v-if="open === i" class="a" v-html="f.a_html" />
         </div>
       </div>
     </div>
