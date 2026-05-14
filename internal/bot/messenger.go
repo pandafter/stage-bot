@@ -11,9 +11,9 @@ import (
 	"go.uber.org/zap"
 )
 
-const graphAPIBase = "https://graph.facebook.com/v25.0/me/messages"
+const graphAPIBase = "https://graph.facebook.com/v21.0/me/messages"
 
-// Messenger sends messages via the Instagram Messaging API.
+// Messenger sends messages via the Instagram Messaging API (Messenger Platform).
 type Messenger struct {
 	token  string
 	client *http.Client
@@ -30,15 +30,20 @@ func NewMessenger(pageAccessToken string, logger *zap.Logger) *Messenger {
 	}
 }
 
-// sendRequest sends a message payload to the Instagram Messaging API.
 func (m *Messenger) sendRequest(payload any) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal: %w", err)
 	}
 
-	url := graphAPIBase + "?access_token=" + m.token
-	resp, err := m.client.Post(url, "application/json", bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, graphAPIBase, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("new request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+m.token)
+
+	resp, err := m.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("http post: %w", err)
 	}
@@ -46,10 +51,8 @@ func (m *Messenger) sendRequest(payload any) error {
 
 	if resp.StatusCode >= 400 {
 		respBody, _ := io.ReadAll(resp.Body)
-		m.logger.Error("messenger: API error",
-			zap.Int("status", resp.StatusCode),
-			zap.String("body", string(respBody)),
-		)
+		errMsg := fmt.Sprintf("messenger: API error status=%d body=%s", resp.StatusCode, string(respBody))
+		m.logger.Error(errMsg)
 		return fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBody))
 	}
 
@@ -69,8 +72,7 @@ func (m *Messenger) SendText(recipientID, text string) error {
 // SendAudio sends an audio attachment (by URL) to the recipient.
 func (m *Messenger) SendAudio(recipientID, audioURL string) error {
 	payload := map[string]any{
-		"recipient":      map[string]string{"id": recipientID},
-		"messaging_type": "RESPONSE",
+		"recipient": map[string]string{"id": recipientID},
 		"message": map[string]any{
 			"attachment": map[string]any{
 				"type": "audio",
