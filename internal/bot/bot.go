@@ -146,18 +146,22 @@ func (h *Handler) processPayload(payload WebhookPayload) {
 func (h *Handler) handleMessage(msg Messaging) {
 	senderID := msg.Sender.ID
 
-	// Dev mode filter: only respond to TEST_SENDER_ID
-	if h.cfg.IsDevelopment() && h.cfg.TestSenderID != "" {
-		if senderID != h.cfg.TestSenderID {
-			h.logger.Debug("bot: ignoring message from non-test sender",
-				zap.String("sender", senderID),
-			)
-			return
-		}
-	}
-
 	// Don't respond to our own messages
 	if senderID == h.cfg.IGAccountID {
+		return
+	}
+
+	h.logger.Info("bot: DM received",
+		zap.String("sender", senderID),
+		zap.String("text", msg.Message.Text),
+	)
+
+	// If TEST_SENDER_ID is set, only reply to that sender (regardless of env)
+	if h.cfg.TestSenderID != "" && senderID != h.cfg.TestSenderID {
+		h.logger.Info("bot: skipping reply — not TEST_SENDER_ID",
+			zap.String("sender", senderID),
+			zap.String("test_sender", h.cfg.TestSenderID),
+		)
 		return
 	}
 
@@ -171,9 +175,8 @@ func (h *Handler) handleMessage(msg Messaging) {
 		}
 	}
 
-	h.logger.Info("bot: new DM received — sending auto-reply",
+	h.logger.Info("bot: sending auto-reply",
 		zap.String("sender", senderID),
-		zap.String("text", msg.Message.Text),
 	)
 
 	// Step 1: Send the director's pre-recorded audio
