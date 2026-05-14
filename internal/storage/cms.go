@@ -80,12 +80,17 @@ func (r *CMSRepo) UpsertSection(ctx context.Context, tenantID, key string, data 
 	if err != nil {
 		return fmt.Errorf("cms.UpsertSection marshal: %w", err)
 	}
+	// Use NULL for updated_by when adminID is 0 (e.g. seed calls).
+	var updatedBy *int64
+	if adminID != 0 {
+		updatedBy = &adminID
+	}
 	_, err = r.db.Pool.Exec(ctx,
 		`INSERT INTO cms_sections (tenant_id, section_key, data, is_published, updated_by, updated_at)
 		 VALUES ($1,$2,$3,$4,$5,NOW())
 		 ON CONFLICT (tenant_id, section_key) DO UPDATE
 		 SET data=$3, is_published=$4, updated_by=$5, version=cms_sections.version+1, updated_at=NOW()`,
-		tenantID, key, raw, isPublished, adminID,
+		tenantID, key, raw, isPublished, updatedBy,
 	)
 	return err
 }
