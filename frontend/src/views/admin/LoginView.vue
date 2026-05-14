@@ -28,7 +28,7 @@ async function login() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+  <div class="admin-shell min-h-screen bg-gray-50 flex items-center justify-center p-4">
     <div class="w-full max-w-sm">
       <!-- Logo / Brand -->
       <div class="text-center mb-8">
