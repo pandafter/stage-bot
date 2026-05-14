@@ -10,10 +10,12 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"go.uber.org/zap"
 
 	"github.com/kart-academy/instagram-bot/internal/api"
+	adminpkg "github.com/kart-academy/instagram-bot/internal/api/admin"
 	"github.com/kart-academy/instagram-bot/internal/bot"
 	"github.com/kart-academy/instagram-bot/internal/config"
 	"github.com/kart-academy/instagram-bot/internal/spa"
@@ -26,8 +28,9 @@ type Server struct {
 }
 
 type Dependencies struct {
-	API *api.Handler
-	Bot *bot.Handler // nil if bot is not configured
+	API   *api.Handler
+	Bot   *bot.Handler       // nil if bot is not configured
+	Admin *adminpkg.Handler  // nil if admin is not configured
 }
 
 func New(cfg *config.Config, deps Dependencies, logger *zap.Logger) *Server {
@@ -42,9 +45,9 @@ func New(cfg *config.Config, deps Dependencies, logger *zap.Logger) *Server {
 
 	app.Use(recover.New())
 
-	allowOrigins := "https://www.scuderiast4ge.com"
-	if !cfg.IsDevelopment() {
-		allowOrigins = "*"
+	allowOrigins := "https://www.scuderiast4ge.com,https://scuderiast4ge.com"
+	if cfg.IsDevelopment() {
+		allowOrigins = "http://localhost:5173,http://localhost:3000"
 	}
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: allowOrigins,
@@ -84,6 +87,77 @@ func (s *Server) setupRoutes(deps Dependencies) {
 		s.app.Post("/dev/inscripciones/:id/reject", deps.API.DevRejectPayment)
 		s.logger.Info("⚠️  dev endpoints activos — POST /dev/inscripciones/:id/confirm|reject")
 	}
+
+	// Admin panel routes
+	if deps.Admin != nil {
+		adminGroup := s.app.Group("/api/admin")
+
+		// Auth (public — no JWT required)
+		// Rate limit: 5 intentos por minuto por IP en el login
+		loginLimiter := limiter.New(limiter.Config{
+			Max:        5,
+			Expiration: 60 * time.Second,
+			KeyGenerator: func(c *fiber.Ctx) string {
+				return c.IP()
+			},
+			LimitReached: func(c *fiber.Ctx) error {
+				return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+					"error": "Demasiados intentos. Espera 1 minuto.",
+				})
+			},
+		})
+		adminGroup.Post("/auth/login", loginLimiter, deps.Admin.Auth.Login)
+
+		// Protected routes
+		protected := adminGroup.Use(adminpkg.RequireJWT(s.cfg))
+		protected.Get("/me", deps.Admin.Auth.Me)
+
+		// CMS sections
+		protected.Get("/cms/sections", deps.Admin.CMS.GetSections)
+		protected.Get("/cms/sections/:key", deps.Admin.CMS.GetSection)
+		protected.Put("/cms/sections/:key", deps.Admin.CMS.UpsertSection)
+
+		// Media
+		protected.Get("/media", deps.Admin.Media.List)
+		protected.Post("/media", deps.Admin.Media.Upload)
+		protected.Delete("/media/:id", deps.Admin.Media.Delete)
+		protected.Patch("/media/:id", deps.Admin.Media.Update)
+
+		// Form config — dates
+		protected.Get("/form/dates", deps.Admin.FormConfig.ListDates)
+		protected.Post("/form/dates", deps.Admin.FormConfig.CreateDate)
+		protected.Post("/form/dates/reorder", deps.Admin.FormConfig.ReorderDates)
+		protected.Patch("/form/dates/:id", deps.Admin.FormConfig.UpdateDate)
+		protected.Delete("/form/dates/:id", deps.Admin.FormConfig.DeleteDate)
+
+		// Form config — plans
+		protected.Get("/form/plans", deps.Admin.FormConfig.ListPlans)
+		protected.Post("/form/plans", deps.Admin.FormConfig.CreatePlan)
+		protected.Patch("/form/plans/:id", deps.Admin.FormConfig.UpdatePlan)
+		protected.Delete("/form/plans/:id", deps.Admin.FormConfig.DeletePlan)
+
+		// Form config — payment methods
+		protected.Get("/form/methods", deps.Admin.FormConfig.ListMethods)
+		protected.Patch("/form/methods/:id", deps.Admin.FormConfig.UpdateMethod)
+
+		// Theme
+		protected.Get("/theme", deps.Admin.Theme.Get)
+		protected.Put("/theme", deps.Admin.Theme.Update)
+
+		// Inscripciones admin (export.csv must precede :id param)
+		protected.Get("/inscripciones", deps.Admin.Inscripciones.List)
+		protected.Get("/inscripciones/export.csv", deps.Admin.Inscripciones.ExportCSV)
+		protected.Get("/inscripciones/:id", deps.Admin.Inscripciones.Get)
+		protected.Patch("/inscripciones/:id/status", deps.Admin.Inscripciones.UpdateStatus)
+	}
+
+	// Security headers para rutas admin
+	s.app.Use("/admin", func(c *fiber.Ctx) error {
+		c.Set("X-Frame-Options", "DENY")
+		c.Set("X-Content-Type-Options", "nosniff")
+		c.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		return c.Next()
+	})
 
 	// SPA fallback (must be last)
 	if err := spa.Register(s.app); err != nil {
