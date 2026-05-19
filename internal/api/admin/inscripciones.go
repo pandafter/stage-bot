@@ -23,6 +23,15 @@ func NewInscripcionesAdminHandler(repo *storage.InscripcionesRepo, audit *storag
 	return &InscripcionesAdminHandler{repo: repo, audit: audit, logger: logger}
 }
 
+func (h *InscripcionesAdminHandler) Stats(c *fiber.Ctx) error {
+	stats, err := h.repo.Stats(c.Context())
+	if err != nil {
+		h.logger.Error("admin: stats inscripciones", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal error"})
+	}
+	return c.JSON(stats)
+}
+
 func (h *InscripcionesAdminHandler) List(c *fiber.Ctx) error {
 	tenantID := TenantIDFromCtx(c)
 

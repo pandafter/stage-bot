@@ -48,6 +48,8 @@ func main() {
 	apiHandler.WithCMSRepo(cmsRepo)
 	// Attach tenants repo so /api/config includes the tenant theme.
 	apiHandler.WithTenantsRepo(tenantsRepo)
+	// Attach form config repo so /api/config serves DB-managed dates.
+	apiHandler.WithFormConfigRepo(formConfigRepo)
 
 	// Bootstrap: create first admin if ADMIN_PASSWORD_HASH is set and no users exist for the tenant.
 	if cfg.AdminPasswordHash != "" {

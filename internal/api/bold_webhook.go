@@ -31,7 +31,7 @@ type boldData struct {
 	MerchantID string `json:"merchant_id"`
 	CreatedAt  string `json:"created_at"`
 	Amount     struct {
-		Total       int64  `json:"total"`
+		Total       int64  `json:"total_amount"`
 		Currency    string `json:"currency"`
 		TaxesAmount int64  `json:"taxes_amount"`
 		TipAmount   int64  `json:"tip_amount"`

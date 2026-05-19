@@ -145,6 +145,7 @@ func (s *Server) setupRoutes(deps Dependencies) {
 		protected.Put("/theme", deps.Admin.Theme.Update)
 
 		// Inscripciones admin (export.csv must precede :id param)
+		protected.Get("/inscripciones/stats", deps.Admin.Inscripciones.Stats)
 		protected.Get("/inscripciones", deps.Admin.Inscripciones.List)
 		protected.Get("/inscripciones/export.csv", deps.Admin.Inscripciones.ExportCSV)
 		protected.Get("/inscripciones/:id", deps.Admin.Inscripciones.Get)
