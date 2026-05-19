@@ -109,15 +109,6 @@ func findMetodo(id string) *PaymentMethod {
 	return nil
 }
 
-func validFecha(f string) bool {
-	for _, x := range Fechas {
-		if x == f {
-			return true
-		}
-	}
-	return false
-}
-
 // methodIsDigital reports whether the method is processed via Bold.
 func methodIsDigital(id string) bool {
 	switch id {

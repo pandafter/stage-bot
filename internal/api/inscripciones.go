@@ -18,14 +18,15 @@ import (
 )
 
 type Handler struct {
-	cfg           *config.Config
-	repo          *storage.InscripcionesRepo
-	telegram      *TelegramClient
-	bold          *BoldClient
-	logger        *zap.Logger
-	cmsRepo       *storage.CMSRepo
-	tenantsRepo   *storage.TenantsRepo
-	defaultTenant string
+	cfg            *config.Config
+	repo           *storage.InscripcionesRepo
+	telegram       *TelegramClient
+	bold           *BoldClient
+	logger         *zap.Logger
+	cmsRepo        *storage.CMSRepo
+	tenantsRepo    *storage.TenantsRepo
+	formConfigRepo *storage.FormConfigRepo
+	defaultTenant  string
 }
 
 func NewHandler(cfg *config.Config, repo *storage.InscripcionesRepo, telegram *TelegramClient, bold *BoldClient, logger *zap.Logger) *Handler {
@@ -52,6 +53,11 @@ func (h *Handler) WithTenantsRepo(tenants *storage.TenantsRepo) {
 	h.tenantsRepo = tenants
 }
 
+// WithFormConfigRepo attaches a form config repository so GetConfig and Create use DB dates.
+func (h *Handler) WithFormConfigRepo(repo *storage.FormConfigRepo) {
+	h.formConfigRepo = repo
+}
+
 // Create handles POST /api/inscripciones.
 func (h *Handler) Create(c *fiber.Ctx) error {
 	var req CreateInscripcionRequest
@@ -59,7 +65,26 @@ func (h *Handler) Create(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid json"})
 	}
 
-	modalidad, method, err := validateCreate(&req)
+	ctx, cancel := context.WithTimeout(c.UserContext(), 15*time.Second)
+	defer cancel()
+
+	// Load valid fechas from DB; fall back to hardcoded list if unavailable.
+	fechas := Fechas
+	if h.formConfigRepo != nil {
+		if dates, err := h.formConfigRepo.ListDates(ctx, h.defaultTenant); err == nil {
+			var dbFechas []string
+			for _, d := range dates {
+				if d.IsEnabled {
+					dbFechas = append(dbFechas, d.Label)
+				}
+			}
+			if len(dbFechas) > 0 {
+				fechas = dbFechas
+			}
+		}
+	}
+
+	modalidad, method, err := validateCreate(&req, fechas)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -69,8 +94,6 @@ func (h *Handler) Create(c *fiber.Ctx) error {
 	rec.MontoCOP = computeMonto(modalidad, method.ID)
 	rec.Status = "pendiente"
 
-	ctx, cancel := context.WithTimeout(c.UserContext(), 15*time.Second)
-	defer cancel()
 	if err := h.repo.Insert(ctx, rec); err != nil {
 		h.logger.Error("insert inscripcion", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "db error"})

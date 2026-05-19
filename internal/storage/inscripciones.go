@@ -10,6 +10,20 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+type InscripcionStats struct {
+	Total          int          `json:"total"`
+	Pendientes     int          `json:"pendientes"`
+	Pagadas        int          `json:"pagadas"`
+	Rechazadas     int          `json:"rechazadas"`
+	MontoRecaudado int64        `json:"monto_recaudado"`
+	PorFecha       []FechaCount `json:"por_fecha"`
+}
+
+type FechaCount struct {
+	Fecha string `json:"fecha"`
+	Count int    `json:"count"`
+}
+
 type InscripcionRecord struct {
 	ID               string
 	Email            string
@@ -94,6 +108,44 @@ func (r *InscripcionesRepo) GetByID(ctx context.Context, id string) (*Inscripcio
 		return nil, fmt.Errorf("get inscripcion %s: %w", id, err)
 	}
 	return rec, nil
+}
+
+func (r *InscripcionesRepo) Stats(ctx context.Context) (InscripcionStats, error) {
+	var s InscripcionStats
+	err := r.db.Pool.QueryRow(ctx, `
+		SELECT
+		  COUNT(*) AS total,
+		  SUM(CASE WHEN status IN ('pendiente','comprobante recibido, en validación','comprobante_pendiente') THEN 1 ELSE 0 END) AS pendientes,
+		  SUM(CASE WHEN status = 'pagado' THEN 1 ELSE 0 END) AS pagadas,
+		  SUM(CASE WHEN status IN ('pago rechazado','rechazado','pago anulado','cancelado') THEN 1 ELSE 0 END) AS rechazadas,
+		  COALESCE(SUM(CASE WHEN status = 'pagado' THEN monto_cop ELSE 0 END), 0) AS monto_recaudado
+		FROM inscripciones`,
+	).Scan(&s.Total, &s.Pendientes, &s.Pagadas, &s.Rechazadas, &s.MontoRecaudado)
+	if err != nil {
+		return s, fmt.Errorf("inscripciones.Stats: %w", err)
+	}
+
+	rows, err := r.db.Pool.Query(ctx, `
+		SELECT fecha_curso, COUNT(*) AS cnt
+		FROM inscripciones
+		WHERE fecha_curso != ''
+		GROUP BY fecha_curso
+		ORDER BY cnt DESC`)
+	if err != nil {
+		return s, fmt.Errorf("inscripciones.Stats por_fecha: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var fc FechaCount
+		if err := rows.Scan(&fc.Fecha, &fc.Count); err != nil {
+			return s, err
+		}
+		s.PorFecha = append(s.PorFecha, fc)
+	}
+	if s.PorFecha == nil {
+		s.PorFecha = []FechaCount{}
+	}
+	return s, rows.Err()
 }
 
 func (r *InscripcionesRepo) List(ctx context.Context, tenantID, status, dateFrom, dateTo, plan, search string, page, limit int) ([]InscripcionRecord, int, error) {
