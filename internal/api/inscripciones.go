@@ -102,7 +102,23 @@ func (h *Handler) Create(c *fiber.Ctx) error {
 		}
 	}
 
-	modalidad, method, err := validateCreate(&req, fechas, modalidades)
+	// Load payment methods from DB; fall back to hardcoded list if unavailable.
+	metodos := Metodos
+	if h.formConfigRepo != nil {
+		if methods, err := h.formConfigRepo.ListMethods(ctx, h.defaultTenant); err == nil {
+			var dbMetodos []PaymentMethod
+			for _, m := range methods {
+				if m.IsEnabled {
+					dbMetodos = append(dbMetodos, PaymentMethod{ID: m.Key, Label: m.Label})
+				}
+			}
+			if len(dbMetodos) > 0 {
+				metodos = dbMetodos
+			}
+		}
+	}
+
+	modalidad, method, err := validateCreate(&req, fechas, modalidades, metodos)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -142,7 +158,12 @@ func (h *Handler) Create(c *fiber.Ctx) error {
 		}
 	}
 
-	go h.telegram.NotifyNewInscripcion(*rec, *modalidad, *method, checkoutURL)
+	// For digital Bold payments, skip the creation notification — the Bold webhook
+	// will notify Telegram when SALE_APPROVED confirms the payment.
+	// For transferencia (manual), notify immediately so the admin knows to watch for the receipt.
+	if !methodIsDigital(method.ID) {
+		go h.telegram.NotifyNewInscripcion(*rec, *modalidad, *method, checkoutURL)
+	}
 
 	return c.JSON(CreateInscripcionResponse{
 		ID:                  rec.ID,
