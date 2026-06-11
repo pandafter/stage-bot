@@ -25,26 +25,26 @@ type FechaCount struct {
 }
 
 type InscripcionRecord struct {
-	ID               string
-	Email            string
-	MetodoPago       string
-	FechaCurso       string
-	Plan             string
-	MontoCOP         int
-	NombrePiloto     string
-	Edad             int
-	TipoDocumento    string
-	NumeroDocumento  string
-	Telefono         string
-	Ciudad           string
-	EPS              string
-	GrupoSanguineo   string
-	FamiliarNombre   string
-	FamiliarTelefono string
-	InstagramUser    string
-	ComprobantePath  string
-	Status           string
-	CreatedAt        time.Time
+	ID               string    `json:"id"`
+	Email            string    `json:"email"`
+	MetodoPago       string    `json:"metodo_pago"`
+	FechaCurso       string    `json:"fecha_curso"`
+	Plan             string    `json:"plan"`
+	MontoCOP         int       `json:"monto_cop"`
+	NombrePiloto     string    `json:"nombre_piloto"`
+	Edad             int       `json:"edad"`
+	TipoDocumento    string    `json:"tipo_documento"`
+	NumeroDocumento  string    `json:"numero_documento"`
+	Telefono         string    `json:"telefono"`
+	Ciudad           string    `json:"ciudad"`
+	EPS              string    `json:"eps"`
+	GrupoSanguineo   string    `json:"grupo_sanguineo"`
+	FamiliarNombre   string    `json:"familiar_nombre"`
+	FamiliarTelefono string    `json:"familiar_telefono"`
+	InstagramUser    string    `json:"instagram_user"`
+	ComprobantePath  string    `json:"comprobante_path"`
+	Status           string    `json:"status"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 type InscripcionesRepo struct {
