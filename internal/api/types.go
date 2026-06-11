@@ -105,9 +105,13 @@ func findModalidadFrom(id string, list []Modalidad) *Modalidad {
 }
 
 func findMetodo(id string) *PaymentMethod {
-	for i := range Metodos {
-		if Metodos[i].ID == id {
-			return &Metodos[i]
+	return findMetodoFrom(id, Metodos)
+}
+
+func findMetodoFrom(id string, list []PaymentMethod) *PaymentMethod {
+	for i := range list {
+		if list[i].ID == id {
+			return &list[i]
 		}
 	}
 	return nil

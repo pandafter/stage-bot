@@ -41,11 +41,31 @@ func (h *Handler) GetConfig(c *fiber.Ctx) error {
 		}
 	}
 
+	// Fetch payment methods from DB; fall back to hardcoded defaults.
+	metodos := Metodos
+	cardSurchargePct := CardSurchargePct
+	if h.formConfigRepo != nil {
+		if methods, err := h.formConfigRepo.ListMethods(c.Context(), h.defaultTenant); err == nil {
+			var dbMetodos []PaymentMethod
+			for _, m := range methods {
+				if m.IsEnabled {
+					dbMetodos = append(dbMetodos, PaymentMethod{ID: m.Key, Label: m.Label})
+					if m.Key == "tarjeta" {
+						cardSurchargePct = int(m.SurchargePct)
+					}
+				}
+			}
+			if len(dbMetodos) > 0 {
+				metodos = dbMetodos
+			}
+		}
+	}
+
 	response := fiber.Map{
 		"modalidades":        modalidades,
-		"metodos":            Metodos,
+		"metodos":            metodos,
 		"fechas":             fechas,
-		"card_surcharge_pct": CardSurchargePct,
+		"card_surcharge_pct": cardSurchargePct,
 		"reserva_cop":        ReservaCOP,
 		"precio_completo":    PrecioCompleto,
 		"precio_descuento":   PrecioDescuento,
