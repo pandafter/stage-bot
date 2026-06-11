@@ -175,6 +175,12 @@ func (db *DB) migrate(ctx context.Context) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_audit_tenant_at ON admin_audit_log(tenant_id, at DESC)`,
 		`ALTER TABLE pricing_plans ADD COLUMN IF NOT EXISTS bold_link TEXT NOT NULL DEFAULT ''`,
+		`CREATE TABLE IF NOT EXISTS bot_leads (
+			sender_id      TEXT PRIMARY KEY,
+			first_msg_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			last_sent_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			followup_count INTEGER NOT NULL DEFAULT 0
+		)`,
 	}
 	for _, m := range migrations {
 		if _, err := db.Pool.Exec(ctx, m); err != nil {

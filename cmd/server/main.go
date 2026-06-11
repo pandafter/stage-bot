@@ -37,7 +37,8 @@ func main() {
 	telegram := api.NewTelegramClient(cfg.TelegramBotToken, cfg.TelegramChatID, logger)
 	bold := api.NewBoldClient(cfg.BoldAPIKey, cfg.PublicURL, logger)
 	apiHandler := api.NewHandler(cfg, repo, telegram, bold, logger)
-	botHandler := bot.NewHandler(cfg, logger)
+	botLeadsRepo := storage.NewBotLeadsRepo(db)
+	botHandler := bot.NewHandler(cfg, botLeadsRepo, logger)
 
 	cmsRepo := storage.NewCMSRepo(db)
 	formConfigRepo := storage.NewFormConfigRepo(db)
