@@ -92,9 +92,13 @@ var Fechas = []string{
 }
 
 func findModalidad(id string) *Modalidad {
-	for i := range Modalidades {
-		if Modalidades[i].ID == id {
-			return &Modalidades[i]
+	return findModalidadFrom(id, Modalidades)
+}
+
+func findModalidadFrom(id string, list []Modalidad) *Modalidad {
+	for i := range list {
+		if list[i].ID == id {
+			return &list[i]
 		}
 	}
 	return nil

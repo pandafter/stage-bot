@@ -132,6 +132,7 @@ func (h *FormConfigHandler) CreatePlan(c *fiber.Ctx) error {
 		Description: req.Description,
 		PriceCOP:    req.PriceCOP,
 		Features:    req.Features,
+		BoldLink:    req.BoldLink,
 		IsEnabled:   req.IsEnabled,
 		SortOrder:   req.SortOrder,
 	}
@@ -226,6 +227,7 @@ func pricingPlanToDTO(p storage.PricingPlanRecord) PricingPlan {
 		Description: p.Description,
 		PriceCOP:    p.PriceCOP,
 		Features:    p.Features,
+		BoldLink:    p.BoldLink,
 		IsEnabled:   p.IsEnabled,
 		SortOrder:   p.SortOrder,
 	}

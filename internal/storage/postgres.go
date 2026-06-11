@@ -174,6 +174,7 @@ func (db *DB) migrate(ctx context.Context) error {
 			at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_audit_tenant_at ON admin_audit_log(tenant_id, at DESC)`,
+		`ALTER TABLE pricing_plans ADD COLUMN IF NOT EXISTS bold_link TEXT NOT NULL DEFAULT ''`,
 	}
 	for _, m := range migrations {
 		if _, err := db.Pool.Exec(ctx, m); err != nil {

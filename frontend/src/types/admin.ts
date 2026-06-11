@@ -50,6 +50,7 @@ export interface FormPlan {
   price_cop: number
   description: string
   features: string[]
+  bold_link: string
   is_enabled: boolean
   sort_order: number
 }

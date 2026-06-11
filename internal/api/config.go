@@ -25,8 +25,24 @@ func (h *Handler) GetConfig(c *fiber.Ctx) error {
 		}
 	}
 
+	// Fetch plans from DB when available; fall back to hardcoded defaults.
+	modalidades := Modalidades
+	if h.formConfigRepo != nil {
+		if plans, err := h.formConfigRepo.ListPlans(c.Context(), h.defaultTenant); err == nil {
+			var dbModalidades []Modalidad
+			for _, p := range plans {
+				if p.IsEnabled {
+					dbModalidades = append(dbModalidades, Modalidad{ID: p.Key, Label: p.Name, PriceCOP: p.PriceCOP})
+				}
+			}
+			if len(dbModalidades) > 0 {
+				modalidades = dbModalidades
+			}
+		}
+	}
+
 	response := fiber.Map{
-		"modalidades":        Modalidades,
+		"modalidades":        modalidades,
 		"metodos":            Metodos,
 		"fechas":             fechas,
 		"card_surcharge_pct": CardSurchargePct,
