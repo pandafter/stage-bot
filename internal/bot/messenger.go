@@ -11,23 +11,31 @@ import (
 	"go.uber.org/zap"
 )
 
-const graphAPIBase = "https://graph.facebook.com/v21.0/me/messages"
+const graphAPIVersion = "v21.0"
 
 // Messenger sends messages via the Instagram Messaging API (Messenger Platform).
 type Messenger struct {
-	token  string
-	client *http.Client
-	logger *zap.Logger
+	token     string
+	accountID string // Instagram Business Account ID or Page ID
+	client    *http.Client
+	logger    *zap.Logger
 }
 
-func NewMessenger(pageAccessToken string, logger *zap.Logger) *Messenger {
+func NewMessenger(pageAccessToken, accountID string, logger *zap.Logger) *Messenger {
 	return &Messenger{
-		token: pageAccessToken,
-		client: &http.Client{
-			Timeout: 15 * time.Second,
-		},
-		logger: logger,
+		token:     pageAccessToken,
+		accountID: accountID,
+		client:    &http.Client{Timeout: 15 * time.Second},
+		logger:    logger,
 	}
+}
+
+func (m *Messenger) messagesURL() string {
+	id := m.accountID
+	if id == "" {
+		id = "me"
+	}
+	return fmt.Sprintf("https://graph.facebook.com/%s/%s/messages", graphAPIVersion, id)
 }
 
 func (m *Messenger) sendRequest(payload any) error {
@@ -36,7 +44,7 @@ func (m *Messenger) sendRequest(payload any) error {
 		return fmt.Errorf("marshal: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, graphAPIBase, bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, m.messagesURL(), bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("new request: %w", err)
 	}
@@ -51,8 +59,16 @@ func (m *Messenger) sendRequest(payload any) error {
 
 	if resp.StatusCode >= 400 {
 		respBody, _ := io.ReadAll(resp.Body)
-		errMsg := fmt.Sprintf("messenger: API error status=%d body=%s", resp.StatusCode, string(respBody))
-		m.logger.Error(errMsg)
+		if resp.StatusCode == http.StatusUnauthorized {
+			m.logger.Error("messenger: PAGE_ACCESS_TOKEN expirado o inválido — genera un nuevo token permanente en Meta for Developers y actualiza la variable PAGE_ACCESS_TOKEN en Railway",
+				zap.String("body", string(respBody)),
+			)
+			return fmt.Errorf("token expirado (401) — actualiza PAGE_ACCESS_TOKEN en Railway")
+		}
+		m.logger.Error("messenger: API error",
+			zap.Int("status", resp.StatusCode),
+			zap.String("body", string(respBody)),
+		)
 		return fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBody))
 	}
 

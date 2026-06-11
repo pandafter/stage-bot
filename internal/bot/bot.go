@@ -51,7 +51,7 @@ func NewHandler(cfg *config.Config, leads *storage.BotLeadsRepo, logger *zap.Log
 	}
 	h := &Handler{
 		cfg:    cfg,
-		msgr:   NewMessenger(cfg.PageAccessToken, logger),
+		msgr:   NewMessenger(cfg.PageAccessToken, cfg.IGAccountID, logger),
 		leads:  leads,
 		logger: logger,
 		quit:   make(chan struct{}),
