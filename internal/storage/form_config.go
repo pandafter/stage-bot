@@ -186,9 +186,9 @@ func (r *FormConfigRepo) UpdateMethod(ctx context.Context, id int64, tenantID st
 	_, err := r.db.Pool.Exec(ctx,
 		`UPDATE payment_methods SET
 		  label=COALESCE(NULLIF($3,''), label),
-		  is_enabled=$4,
-		  surcharge_pct=$5,
-		  sort_order=$6
+		  is_enabled=COALESCE($4::boolean, is_enabled),
+		  surcharge_pct=COALESCE($5::numeric, surcharge_pct),
+		  sort_order=COALESCE($6::integer, sort_order)
 		 WHERE id=$1 AND tenant_id=$2`,
 		id, tenantID,
 		fields["label"], fields["is_enabled"], fields["surcharge_pct"], fields["sort_order"],
