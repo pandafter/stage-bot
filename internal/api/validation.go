@@ -34,7 +34,7 @@ func computeMonto(modalidad *Modalidad, metodoID string) int {
 
 // validateCreate checks the incoming request and returns the matched Modalidad
 // + PaymentMethod, or an error explaining what is wrong.
-func validateCreate(req *CreateInscripcionRequest, validFechas []string) (*Modalidad, *PaymentMethod, error) {
+func validateCreate(req *CreateInscripcionRequest, validFechas []string, modalidades []Modalidad) (*Modalidad, *PaymentMethod, error) {
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 	req.NombrePiloto = strings.TrimSpace(req.NombrePiloto)
 	req.NumeroDocumento = strings.TrimSpace(req.NumeroDocumento)
@@ -69,7 +69,7 @@ func validateCreate(req *CreateInscripcionRequest, validFechas []string) (*Modal
 	if req.Edad < 8 || req.Edad > 90 {
 		return nil, nil, errors.New("edad fuera de rango (8-90)")
 	}
-	mod := findModalidad(req.Modalidad)
+	mod := findModalidadFrom(req.Modalidad, modalidades)
 	if mod == nil {
 		return nil, nil, errors.New("modalidad inválida")
 	}

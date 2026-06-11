@@ -87,16 +87,17 @@ type ReorderRequest struct {
 
 // Pricing plans
 type PricingPlan struct {
-	ID          int64          `json:"id"`
-	TenantID    string         `json:"tenant_id"`
-	Key         string         `json:"key"`
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	PriceCOP    int            `json:"price_cop"`
-	Features    []string       `json:"features"`
-	ImageURL    string         `json:"image_url"`
-	IsEnabled   bool           `json:"is_enabled"`
-	SortOrder   int            `json:"sort_order"`
+	ID          int64    `json:"id"`
+	TenantID    string   `json:"tenant_id"`
+	Key         string   `json:"key"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	PriceCOP    int      `json:"price_cop"`
+	Features    []string `json:"features"`
+	ImageURL    string   `json:"image_url"`
+	BoldLink    string   `json:"bold_link"`
+	IsEnabled   bool     `json:"is_enabled"`
+	SortOrder   int      `json:"sort_order"`
 }
 
 type CreatePlanRequest struct {
@@ -105,6 +106,7 @@ type CreatePlanRequest struct {
 	Description string   `json:"description"`
 	PriceCOP    int      `json:"price_cop" validate:"required,min=0"`
 	Features    []string `json:"features"`
+	BoldLink    string   `json:"bold_link"`
 	IsEnabled   bool     `json:"is_enabled"`
 	SortOrder   int      `json:"sort_order"`
 }

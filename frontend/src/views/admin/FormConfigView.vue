@@ -41,17 +41,17 @@ async function toggleDate(d: FormDate) {
 // ── Planes ────────────────────────────────────────────────────────
 const showPlanModal = ref(false)
 const editingPlan = ref<FormPlan | null>(null)
-const planForm = ref({ key: '', name: '', description: '', price_cop: 0, features: [] as string[], is_enabled: true, sort_order: 0 })
+const planForm = ref({ key: '', name: '', description: '', price_cop: 0, features: [] as string[], bold_link: '', is_enabled: true, sort_order: 0 })
 
 function openCreatePlan() {
   editingPlan.value = null
-  planForm.value = { key: '', name: '', description: '', price_cop: 0, features: [], is_enabled: true, sort_order: store.plans.length }
+  planForm.value = { key: '', name: '', description: '', price_cop: 0, features: [], bold_link: '', is_enabled: true, sort_order: store.plans.length }
   showPlanModal.value = true
 }
 
 function openEditPlan(p: FormPlan) {
   editingPlan.value = p
-  planForm.value = { key: p.key, name: p.name, description: p.description, price_cop: p.price_cop, features: p.features ?? [], is_enabled: p.is_enabled, sort_order: p.sort_order }
+  planForm.value = { key: p.key, name: p.name, description: p.description, price_cop: p.price_cop, features: p.features ?? [], bold_link: p.bold_link ?? '', is_enabled: p.is_enabled, sort_order: p.sort_order }
   showPlanModal.value = true
 }
 
@@ -197,8 +197,24 @@ const tabs = [
             </span>
           </div>
           <code class="text-xs text-gray-400 mb-2">{{ p.key }}</code>
-          <p class="text-gray-500 text-sm mb-4 flex-1 leading-relaxed">{{ p.description || '—' }}</p>
-          <p class="text-2xl font-bold text-blue-600 mb-4">{{ formatCOP(p.price_cop) }}</p>
+          <p class="text-gray-500 text-sm mb-3 flex-1 leading-relaxed">{{ p.description || '—' }}</p>
+          <p class="text-2xl font-bold text-blue-600 mb-3">{{ formatCOP(p.price_cop) }}</p>
+          <div class="mb-4">
+            <span
+              v-if="p.bold_link"
+              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+              :title="p.bold_link"
+            >
+              <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+              Link Bold configurado
+            </span>
+            <span
+              v-else
+              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-50 text-gray-400 ring-1 ring-gray-200"
+            >
+              Link Bold dinámico (API)
+            </span>
+          </div>
           <div class="flex gap-2">
             <button
               @click="openEditPlan(p)"
@@ -389,6 +405,21 @@ const tabs = [
               />
               <p v-if="planForm.price_cop > 0" class="text-xs text-gray-400 mt-1">
                 {{ formatCOP(planForm.price_cop) }}
+              </p>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Link de pago Bold
+              </label>
+              <input
+                v-model="planForm.bold_link"
+                type="url"
+                placeholder="https://checkout.bold.co/payment/LNK_..."
+                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none focus:border-transparent"
+              />
+              <p class="text-xs text-gray-400 mt-1">
+                Opcional. Si lo dejas vacío se genera un link dinámico por inscripción vía API de Bold.
+                Si lo configuras, todos los pagos de este plan irán a este link fijo.
               </p>
             </div>
             <label class="flex items-center gap-3 cursor-pointer">

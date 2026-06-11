@@ -84,7 +84,25 @@ func (h *Handler) Create(c *fiber.Ctx) error {
 		}
 	}
 
-	modalidad, method, err := validateCreate(&req, fechas)
+	// Load modalidades from DB; fall back to hardcoded list if unavailable.
+	modalidades := Modalidades
+	var dbPlans []storage.PricingPlanRecord
+	if h.formConfigRepo != nil {
+		if plans, err := h.formConfigRepo.ListPlans(ctx, h.defaultTenant); err == nil {
+			var dbModalidades []Modalidad
+			for _, p := range plans {
+				if p.IsEnabled {
+					dbModalidades = append(dbModalidades, Modalidad{ID: p.Key, Label: p.Name, PriceCOP: p.PriceCOP})
+					dbPlans = append(dbPlans, p)
+				}
+			}
+			if len(dbModalidades) > 0 {
+				modalidades = dbModalidades
+			}
+		}
+	}
+
+	modalidad, method, err := validateCreate(&req, fechas, modalidades)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -101,13 +119,26 @@ func (h *Handler) Create(c *fiber.Ctx) error {
 
 	var checkoutURL string
 	if methodIsDigital(method.ID) {
-		boldMethod := boldMethodFromID(method.ID)
-		url, err := h.bold.CreateLink(ctx, boldMethod, rec.MontoCOP, rec.ID,
-			boldDescription(modalidad.ID, rec.Edad), rec.Email)
-		if err != nil {
-			h.logger.Error("bold link create failed", zap.Error(err))
+		// Use pre-configured Bold link if the plan has one set.
+		var planBoldLink string
+		for _, p := range dbPlans {
+			if p.Key == req.Modalidad && p.BoldLink != "" {
+				planBoldLink = p.BoldLink
+				break
+			}
+		}
+
+		if planBoldLink != "" {
+			checkoutURL = planBoldLink
 		} else {
-			checkoutURL = url
+			boldMethod := boldMethodFromID(method.ID)
+			url, err := h.bold.CreateLink(ctx, boldMethod, rec.MontoCOP, rec.ID,
+				boldDescription(modalidad.ID, rec.Edad), rec.Email)
+			if err != nil {
+				h.logger.Error("bold link create failed", zap.Error(err))
+			} else {
+				checkoutURL = url
+			}
 		}
 	}
 

@@ -88,13 +88,14 @@ type PricingPlanRecord struct {
 	Description string
 	PriceCOP    int
 	Features    []string
+	BoldLink    string
 	IsEnabled   bool
 	SortOrder   int
 }
 
 func (r *FormConfigRepo) ListPlans(ctx context.Context, tenantID string) ([]PricingPlanRecord, error) {
 	rows, err := r.db.Pool.Query(ctx,
-		`SELECT id, tenant_id, key, name, description, price_cop, features, is_enabled, sort_order
+		`SELECT id, tenant_id, key, name, description, price_cop, features, bold_link, is_enabled, sort_order
 		 FROM pricing_plans WHERE tenant_id=$1 ORDER BY sort_order`, tenantID)
 	if err != nil {
 		return nil, err
@@ -104,7 +105,7 @@ func (r *FormConfigRepo) ListPlans(ctx context.Context, tenantID string) ([]Pric
 	for rows.Next() {
 		var p PricingPlanRecord
 		var featRaw []byte
-		if err := rows.Scan(&p.ID, &p.TenantID, &p.Key, &p.Name, &p.Description, &p.PriceCOP, &featRaw, &p.IsEnabled, &p.SortOrder); err != nil {
+		if err := rows.Scan(&p.ID, &p.TenantID, &p.Key, &p.Name, &p.Description, &p.PriceCOP, &featRaw, &p.BoldLink, &p.IsEnabled, &p.SortOrder); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal(featRaw, &p.Features)
@@ -116,29 +117,31 @@ func (r *FormConfigRepo) ListPlans(ctx context.Context, tenantID string) ([]Pric
 func (r *FormConfigRepo) CreatePlan(ctx context.Context, p PricingPlanRecord) (*PricingPlanRecord, error) {
 	raw, _ := json.Marshal(p.Features)
 	err := r.db.Pool.QueryRow(ctx,
-		`INSERT INTO pricing_plans (tenant_id, key, name, description, price_cop, features, is_enabled, sort_order)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-		 RETURNING id, tenant_id, key, name, description, price_cop, features, is_enabled, sort_order`,
-		p.TenantID, p.Key, p.Name, p.Description, p.PriceCOP, raw, p.IsEnabled, p.SortOrder,
-	).Scan(&p.ID, &p.TenantID, &p.Key, &p.Name, &p.Description, &p.PriceCOP, &raw, &p.IsEnabled, &p.SortOrder)
+		`INSERT INTO pricing_plans (tenant_id, key, name, description, price_cop, features, bold_link, is_enabled, sort_order)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		 RETURNING id, tenant_id, key, name, description, price_cop, features, bold_link, is_enabled, sort_order`,
+		p.TenantID, p.Key, p.Name, p.Description, p.PriceCOP, raw, p.BoldLink, p.IsEnabled, p.SortOrder,
+	).Scan(&p.ID, &p.TenantID, &p.Key, &p.Name, &p.Description, &p.PriceCOP, &raw, &p.BoldLink, &p.IsEnabled, &p.SortOrder)
 	_ = json.Unmarshal(raw, &p.Features)
 	return &p, err
 }
 
 func (r *FormConfigRepo) UpdatePlan(ctx context.Context, id int64, tenantID string, fields map[string]any) error {
 	raw, _ := json.Marshal(fields["features"])
+	boldLink, _ := fields["bold_link"].(string)
 	_, err := r.db.Pool.Exec(ctx,
 		`UPDATE pricing_plans SET
 		  name=COALESCE(NULLIF($3,''), name),
 		  description=COALESCE($4, description),
 		  price_cop=COALESCE($5, price_cop),
 		  features=COALESCE($6, features),
-		  is_enabled=$7,
-		  sort_order=$8
+		  bold_link=$7,
+		  is_enabled=$8,
+		  sort_order=$9
 		 WHERE id=$1 AND tenant_id=$2`,
 		id, tenantID,
 		fields["name"], fields["description"], fields["price_cop"], raw,
-		fields["is_enabled"], fields["sort_order"],
+		boldLink, fields["is_enabled"], fields["sort_order"],
 	)
 	return err
 }
