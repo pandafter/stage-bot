@@ -88,11 +88,14 @@ export const useFormConfigStore = defineStore('adminFormConfig', () => {
 
   // Methods
   async function toggleMethod(id: number, isEnabled: boolean) {
+    const m = methods.value.find(m => m.id === id)
+    if (m) m.is_enabled = isEnabled
     saving.value = true
     try {
       await formConfigService.updateMethod(id, { is_enabled: isEnabled })
-      const m = methods.value.find(m => m.id === id)
-      if (m) m.is_enabled = isEnabled
+    } catch (e) {
+      if (m) m.is_enabled = !isEnabled // revert on error
+      console.error('toggleMethod failed', e)
     } finally {
       saving.value = false
     }
